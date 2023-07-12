@@ -1,0 +1,9 @@
+[submodule "keystone"]
+	path = keystone
+	url = https://github.com/keystone-enclave/keystone.git
+[submodule "xvisor"]
+	path = xvisor
+	url = https://github.com/xvisor/xvisor.git
+[submodule "qemu"]
+	path = qemu
+	url = https://github.com/qemu/qemu.git
