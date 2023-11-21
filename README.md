@@ -25,7 +25,7 @@ Follow [this section](http://docs.keystone-enclave.org/en/latest/Getting-Started
 ```
 
 - Follow `xvisor/docs/riscv/riscv64-qemu.txt` to build Xvisor VMM and disk image.
-  - Use `images/rootfs.img` as BusyBox RAMDISK and `images/Image` as Linux kernel image. 
+  - Use `images/rootfs.img` as BusyBox 1.33.1 RAMDISK and `images/Image` as Linux kernel image. 
 
 ## Building QEMU
 

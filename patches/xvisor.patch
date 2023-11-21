@@ -1,3 +1,101 @@
+diff --git a/arch/riscv/cpu/generic/cpu_vcpu_sbi.c b/arch/riscv/cpu/generic/cpu_vcpu_sbi.c
+index ebe34465..aac68660 100644
+--- a/arch/riscv/cpu/generic/cpu_vcpu_sbi.c
++++ b/arch/riscv/cpu/generic/cpu_vcpu_sbi.c
+@@ -36,6 +36,7 @@ extern const struct cpu_vcpu_sbi_extension vcpu_sbi_hsm;
+ extern const struct cpu_vcpu_sbi_extension vcpu_sbi_srst;
+ extern const struct cpu_vcpu_sbi_extension vcpu_sbi_legacy;
+ extern const struct cpu_vcpu_sbi_extension vcpu_sbi_xvisor;
++extern const struct cpu_vcpu_sbi_extension vcpu_sbi_keystone;
+ 
+ static const struct cpu_vcpu_sbi_extension *vcpu_sbi[] = {
+ 	&vcpu_sbi_time,
+@@ -46,6 +47,7 @@ static const struct cpu_vcpu_sbi_extension *vcpu_sbi[] = {
+ 	&vcpu_sbi_srst,
+ 	&vcpu_sbi_legacy,
+ 	&vcpu_sbi_xvisor,
++	&vcpu_sbi_keystone,
+ };
+ 
+ const struct cpu_vcpu_sbi_extension *cpu_vcpu_sbi_find_extension(
+diff --git a/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c b/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c
+new file mode 100644
+index 00000000..9f771dfc
+--- /dev/null
++++ b/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c
+@@ -0,0 +1,35 @@
++#include <vmm_error.h>
++#include <vmm_macros.h>
++#include <vmm_manager.h>
++#include <cpu_sbi.h>
++#include <cpu_vcpu_sbi.h>
++#include <riscv_sbi.h>
++
++static int vcpu_sbi_keystone_ecall(struct vmm_vcpu *vcpu, unsigned long ext_id,
++			       unsigned long func_id, unsigned long *args,
++			       struct cpu_vcpu_sbi_return *out)
++{
++	int ret = 0;
++	struct sbiret hret;
++
++	switch (func_id) {
++	case SBI_SM_CREATE_ENCLAVE:
++	case SBI_SM_DESTROY_ENCLAVE:
++	case SBI_SM_RUN_ENCLAVE:
++	case SBI_SM_RESUME_ENCLAVE:
++		hret = sbi_ecall(SBI_EXT_KEYSTONE, func_id, args[0], args[1], args[2], args[3], args[4], args[5]);
++		ret = hret.error;
++		out->value = hret.value;
++		break;
++	default:
++		ret = SBI_ERR_NOT_SUPPORTED;
++	}
++
++	return ret;
++}
++
++const struct cpu_vcpu_sbi_extension vcpu_sbi_keystone = {
++	.extid_start = SBI_EXT_KEYSTONE,
++	.extid_end = SBI_EXT_KEYSTONE,
++	.handle = vcpu_sbi_keystone_ecall,
++};
+diff --git a/arch/riscv/cpu/generic/include/riscv_sbi.h b/arch/riscv/cpu/generic/include/riscv_sbi.h
+index eadd6bc9..3b9d0450 100644
+--- a/arch/riscv/cpu/generic/include/riscv_sbi.h
++++ b/arch/riscv/cpu/generic/include/riscv_sbi.h
+@@ -43,6 +43,7 @@
+ #define SBI_EXT_HSM				0x48534D
+ #define SBI_EXT_SRST				0x53525354
+ #define SBI_EXT_PMU				0x504D55
++#define SBI_EXT_KEYSTONE        0x08424b45
+ 
+ /* SBI function IDs for BASE extension */
+ #define SBI_EXT_BASE_GET_SPEC_VERSION		0x0
+@@ -114,6 +115,12 @@
+ #define SBI_EXT_PMU_COUNTER_STOP	0x4
+ #define SBI_EXT_PMU_COUNTER_FW_READ	0x5
+ 
++/* SBI function IDs for KEYSTONE extension */
++#define SBI_SM_CREATE_ENCLAVE   2001
++#define SBI_SM_DESTROY_ENCLAVE  2002
++#define SBI_SM_RUN_ENCLAVE      2003
++#define SBI_SM_RESUME_ENCLAVE   2005
++
+ /** General pmu event codes specified in SBI PMU extension */
+ enum sbi_pmu_hw_generic_events_t {
+ 	SBI_PMU_HW_NO_EVENT			= 0,
+diff --git a/arch/riscv/cpu/generic/objects.mk b/arch/riscv/cpu/generic/objects.mk
+index 230da2a1..ce0ec17c 100644
+--- a/arch/riscv/cpu/generic/objects.mk
++++ b/arch/riscv/cpu/generic/objects.mk
+@@ -95,6 +95,7 @@ cpu-objs-y+= cpu_vcpu_sbi_legacy.o
+ cpu-objs-y+= cpu_vcpu_sbi_replace.o
+ cpu-objs-y+= cpu_vcpu_sbi_hsm.o
+ cpu-objs-y+= cpu_vcpu_sbi_xvisor.o
++cpu-objs-y+= cpu_vcpu_sbi_keystone.o
+ cpu-objs-y+= cpu_vcpu_switch.o
+ cpu-objs-y+= cpu_vcpu_timer.o
+ cpu-objs-y+= cpu_vcpu_trap.o
 diff --git a/core/vmm_main.c b/core/vmm_main.c
 index fb58051f..1e7b4504 100644
 --- a/core/vmm_main.c
@@ -23,6 +121,77 @@ index fb58051f..1e7b4504 100644
  	/* Initialize DMA heap */
  	vmm_init_printf("DMA heap management\n");
  	ret = vmm_dma_heap_init();
+diff --git a/tests/riscv/virt64/basic/arch_board.c b/tests/riscv/virt64/basic/arch_board.c
+index 0ce85c45..92c58270 100644
+--- a/tests/riscv/virt64/basic/arch_board.c
++++ b/tests/riscv/virt64/basic/arch_board.c
+@@ -55,7 +55,7 @@
+ #define VIRT_PCI			(0x30000000)
+ #define VIRT_PCI_SIZE			(0x20000000)
+ #define VIRT_RAM0			(0x80000000)
+-#define VIRT_RAM0_SIZE			(0x06000000)
++#define VIRT_RAM0_SIZE			(0x80000000)
+ 
+ /*
+  * Interrupts.
+diff --git a/tests/riscv/virt64/linux/cmdlist b/tests/riscv/virt64/linux/cmdlist
+index 333b06c9..e1b0dbfd 100644
+--- a/tests/riscv/virt64/linux/cmdlist
++++ b/tests/riscv/virt64/linux/cmdlist
+@@ -1,4 +1,4 @@
+ copy 0x80200000 0x00100000 0x1E00000
+ copy 0x83000000 0x01F00000 0x020000
+-copy 0x83100000 0x02000000 0x1000000
+-start_linux_fdt 0x80200000 0x83000000 0x83100000 0x1000000
++copy 0x83100000 0x02000000 0x4000000
++start_linux_fdt 0x80200000 0x83000000 0x83100000 0x4000000
+diff --git a/tests/riscv/virt64/linux/virt64.dts b/tests/riscv/virt64/linux/virt64.dts
+index a43b8b1e..bdfec082 100644
+--- a/tests/riscv/virt64/linux/virt64.dts
++++ b/tests/riscv/virt64/linux/virt64.dts
+@@ -32,7 +32,7 @@
+ 
+ 	memory@80000000 {
+ 		device_type = "memory";
+-		reg = <0x00000000 0x80000000 0 0x06000000>;
++		reg = <0x00000000 0x80000000 0 0x80000000>;
+ 	};
+ 
+ 	smb {
+diff --git a/tests/riscv/virt64/virt64-guest.dts b/tests/riscv/virt64/virt64-guest.dts
+index 5ffe044e..8bb26208 100644
+--- a/tests/riscv/virt64/virt64-guest.dts
++++ b/tests/riscv/virt64/virt64-guest.dts
+@@ -28,7 +28,7 @@
+ 			manifest_type = "real";
+ 			address_type = "memory";
+ 			guest_physical_addr = <0x00000000>;
+-			physical_size = <0x03000000>;
++			physical_size = <0x06000000>;
+ 			device_type = "alloced_rom";
+ 			align_order = <21>; /* Align alloced memory to 2MB */
+ 		};
+@@ -64,6 +64,7 @@
+ 			guest_physical_addr = <0x10001000>;
+ 			physical_size = <0x1000>;
+ 			ram0_base = <0x80000000>;
++			ram0_size = <0x80000000>;
+ 		};
+ 
+ 		simplefb {
+diff --git a/tests/riscv/virt64/xscript/one_guest_virt64.xscript b/tests/riscv/virt64/xscript/one_guest_virt64.xscript
+index 262a96e3..c942ee14 100644
+--- a/tests/riscv/virt64/xscript/one_guest_virt64.xscript
++++ b/tests/riscv/virt64/xscript/one_guest_virt64.xscript
+@@ -2,7 +2,7 @@
+ shmem create default 0x1000000 21
+ 
+ # Load guest0 device tree from file
+-vfs guest_fdt_load guest0 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x10000000 net0,switch,string,br0 shmem0,shared_mem,string,default
++vfs guest_fdt_load guest0 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x80000000 net0,switch,string,br0 shmem0,shared_mem,string,default
+ 
+ # Create guest0
+ guest create guest0
 diff --git a/tools/scripts/d2c.py b/tools/scripts/d2c.py
 index b46a7bc4..0a6bce08 100755
 --- a/tools/scripts/d2c.py
@@ -33,3 +202,5 @@ index b46a7bc4..0a6bce08 100755
  #/**
  # Copyright (c) 2013 Anup Patel.
  # All rights reserved.
+ 
+

@@ -1,0 +1,176 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index a6f2687..6efcdd7 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -61,7 +61,7 @@ else()
+   set(ABI lp64d)
+ endif()
+ 
+-set(ISA rv${BITS}imafdc)
++set(ISA rv${BITS}imafdc_hghi)
+ set(confdir ${CMAKE_SOURCE_DIR}/conf)
+ set(patchdir ${CMAKE_SOURCE_DIR}/patches)
+ set(cross_compile riscv${BITS}-unknown-linux-gnu-)
+diff --git a/conf/linux64-defconfig b/conf/linux64-defconfig
+index c205076..a4f9138 100644
+--- a/conf/linux64-defconfig
++++ b/conf/linux64-defconfig
+@@ -3145,4 +3145,6 @@ CONFIG_DEBUG_SG=y
+ CONFIG_RCU_EQS_DEBUG=y
+ CONFIG_DEBUG_BLOCK_EXT_DEVT=y
+ CONFIG_DEBUG_INFO=y
++CONFIG_DEBUG_INFO_DWARF4=y
++CONFIG_GDB_SCRIPTS=y
+ #
+diff --git a/sm/src/mprv.S b/sm/src/mprv.S
+index 07f4605..e5e8fa5 100644
+--- a/sm/src/mprv.S
++++ b/sm/src/mprv.S
+@@ -1,10 +1,14 @@
+ #if __riscv_xlen == 64
+ # define STORE    sd
+ # define LOAD     ld
++# define HSTORE   hsv.d
++# define HLOAD    hlv.d
+ # define LOG_REGBYTES 3
+ #elif __riscv_xlen == 32
+ # define STORE    sw
+ # define LOAD     lw
++# define HSTORE   hsv.w
++# define HLOAD    hlv.w
+ # define LOG_REGBYTES 2
+ #endif
+ 
+@@ -47,6 +51,20 @@
+     slli reg, reg, 17  ;\
+     csrc mstatus, reg
+ 
++#define CHECK_SPP(r_mstatus, r_spp, jumpname)  \
++    srli r_spp, r_mstatus, 8                  ;\
++    andi r_spp, r_spp, 1                      ;\
++    bnez r_spp, jumpname##_hyp
++
++#define USE_HYP_MODE(jumpname)  \
++        j jumpname##_hyp_end   ;\
++        .align 4               ;\
++    jumpname##_hyp :
++
++#define END_HYP_MODE(jumpname)  \
++        .align 4               ;\
++    jumpname##_hyp_end :       
++
+ 
+ 
+ .global copy_block_to_sm
+@@ -61,6 +79,7 @@ copy_block_to_sm:
+     # a5: mstatus
+ TRY(copy_block_in_check, a2, a3, a4, a5)
+     SET_MPRV(t0)
++    CHECK_SPP(a5, a7, copy_block_in_load)
+     LOAD t0, 0*REGBYTES(a1)
+     LOAD t1, 1*REGBYTES(a1)
+     LOAD t2, 2*REGBYTES(a1)
+@@ -69,6 +88,23 @@ TRY(copy_block_in_check, a2, a3, a4, a5)
+     LOAD t5, 5*REGBYTES(a1)
+     LOAD t6, 6*REGBYTES(a1)
+     LOAD a6, 7*REGBYTES(a1)
++    USE_HYP_MODE(copy_block_in_load)
++    HLOAD t0, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t1, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t2, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t3, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t4, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t5, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD t6, (a1)
++    addi  a1, a1, REGBYTES
++    HLOAD a6, (a1)
++    END_HYP_MODE(copy_block_in_load)
+     UNSET_MPRV(a1)
+     STORE t0, 0*REGBYTES(a0)
+     STORE t1, 1*REGBYTES(a0)
+@@ -93,7 +129,11 @@ copy_word_to_sm:
+     # a1: src
+ TRY(copy_word_in_check, t1, t2, t3, t4)
+     SET_MPRV(t5)
++    CHECK_SPP(t4, a2, copy_word_in_load)
+     LOAD t0, 0x00(a1)
++    USE_HYP_MODE(copy_word_in_load)
++    HLOAD t0, (a1)
++    END_HYP_MODE(copy_word_in_load)
+     UNSET_MPRV(t5)
+     STORE t0, 0x00(a0)
+     li a0, 0
+@@ -111,7 +151,11 @@ copy1_to_sm:
+     # a1: src
+ TRY(copy1in_check, t1, t2, t3, t4)
+     SET_MPRV(t5)
++    CHECK_SPP(t4, a2, copy1in_load)
+     lb t0, 0x00(a1)
++    USE_HYP_MODE(copy1in_load)
++    hlv.b t0, (a1)
++    END_HYP_MODE(copy1in_load)
+     UNSET_MPRV(t5)
+     sb t0, 0x00(a0)
+     li a0, 0
+@@ -143,6 +187,7 @@ TRY(copy_block_out_check, a2, a3, a4, a5)
+     LOAD t6, 6*REGBYTES(a1)
+     LOAD a6, 7*REGBYTES(a1)
+     SET_MPRV(a1)
++    CHECK_SPP(a5, a7, copy_block_out_store)
+     STORE t0, 0*REGBYTES(a0)
+     STORE t1, 1*REGBYTES(a0)
+     STORE t2, 2*REGBYTES(a0)
+@@ -151,6 +196,23 @@ TRY(copy_block_out_check, a2, a3, a4, a5)
+     STORE t5, 5*REGBYTES(a0)
+     STORE t6, 6*REGBYTES(a0)
+     STORE a6, 7*REGBYTES(a0)
++    USE_HYP_MODE(copy_block_out_store)
++    HSTORE t0, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t1, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t2, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t3, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t4, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t5, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE t6, (a0)
++    addi   a0, a0, REGBYTES
++    HSTORE a6, (a0)
++    END_HYP_MODE(copy_block_out_store)
+     UNSET_MPRV(a1)
+     li a0, 0
+ CATCH_ERR(copy_block_out_check, a1)
+@@ -168,7 +230,11 @@ copy_word_from_sm:
+ TRY(copy_word_out_check, t1, t2, t3, t4)
+     LOAD t0, 0x00(a1)
+     SET_MPRV(t5)
++    CHECK_SPP(t4, a2, copy_word_out_store)
+     STORE t0, 0x00(a0)
++    USE_HYP_MODE(copy_word_out_store)
++    HSTORE t0, (a1)
++    END_HYP_MODE(copy_word_out_store)    
+     li a0, 0
+ CATCH_ERR(copy_word_out_check, t5)
+     li a0, -1
+@@ -185,7 +251,11 @@ copy1_from_sm:
+ TRY(copy1out_check, t1, t2, t3, t4)
+     lb t0, 0x00(a1)
+     SET_MPRV(t5)
++    CHECK_SPP(t4, a2, copy1out_store)
+     sb t0, 0x00(a0)
++    USE_HYP_MODE(copy1out_store)
++    hsv.b t0, (a1)
++    END_HYP_MODE(copy1out_store) 
+     li a0, 0
+ CATCH_ERR(copy1out_check, t5)
+     li a0, -1
