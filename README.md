@@ -21,6 +21,7 @@ after cloning it.
 ```
 
 - Follow 1.2.1.2. Start Without Docker in [this section](http://docs.keystone-enclave.org/en/v0.4/Getting-Started/Running-Keystone-with-QEMU.html) of the Keystone documentation.
+  - Please skip the step of `make qemu` which builds an in-tree QEMU in Keystone.
   - Note: make sure to use the v0.4 documentation.
 
 ## Building Xvisor

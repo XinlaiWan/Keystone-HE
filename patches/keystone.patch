@@ -57,7 +57,7 @@ index 07f4605..e5e8fa5 100644
 +
 +#define END_HYP_MODE(jumpname)  \
 +        .align 4               ;\
-+    jumpname##_hyp_end :       
++    jumpname##_hyp_end :
 +
  
  
@@ -158,7 +158,7 @@ index 07f4605..e5e8fa5 100644
      STORE t0, 0x00(a0)
 +    USE_HYP_MODE(copy_word_out_store)
 +    HSTORE t0, (a1)
-+    END_HYP_MODE(copy_word_out_store)    
++    END_HYP_MODE(copy_word_out_store)
      li a0, 0
  CATCH_ERR(copy_word_out_check, t5)
      li a0, -1
@@ -170,7 +170,18 @@ index 07f4605..e5e8fa5 100644
      sb t0, 0x00(a0)
 +    USE_HYP_MODE(copy1out_store)
 +    hsv.b t0, (a1)
-+    END_HYP_MODE(copy1out_store) 
++    END_HYP_MODE(copy1out_store)
      li a0, 0
  CATCH_ERR(copy1out_check, t5)
      li a0, -1
+diff --git a/sdk/include/host/keystone_user.h b/sdk/include/host/keystone_user.h
+index 0680e68..33ce9ff 100644
+--- a/sdk/include/host/keystone_user.h
++++ b/sdk/include/host/keystone_user.h
+@@ -7,6 +7,7 @@
+ 
+ #include <linux/ioctl.h>
+ #include <linux/types.h>
++#include <cstdint>
+ // Linux generic TEE subsystem magic defined in <linux/tee.h>
+ #define KEYSTONE_IOC_MAGIC 0xa4
