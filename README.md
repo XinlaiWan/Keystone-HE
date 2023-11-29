@@ -13,7 +13,15 @@ after cloning it.
 
 ## Building Keystone components
 
-Follow [this section](http://docs.keystone-enclave.org/en/latest/Getting-Started/Running-Keystone-with-QEMU.html#start-without-docker) in the Keystone documentation.
+- Apply the patch on Xvisor
+
+```
+> cd keystone
+> git apply ../patches/keystone.patch
+```
+
+- Follow 1.2.1.2. Start Without Docker in [this section](http://docs.keystone-enclave.org/en/v0.4/Getting-Started/Running-Keystone-with-QEMU.html) of the Keystone documentation.
+  - Note: make sure to use the v0.4 documentation.
 
 ## Building Xvisor
 
