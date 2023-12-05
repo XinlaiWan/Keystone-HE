@@ -1,27 +1,3 @@
-diff --git a/CMakeLists.txt b/CMakeLists.txt
-index a6f2687..6efcdd7 100644
---- a/CMakeLists.txt
-+++ b/CMakeLists.txt
-@@ -61,7 +61,7 @@ else()
-   set(ABI lp64d)
- endif()
- 
--set(ISA rv${BITS}imafdc)
-+set(ISA rv${BITS}imafdc_hghi)
- set(confdir ${CMAKE_SOURCE_DIR}/conf)
- set(patchdir ${CMAKE_SOURCE_DIR}/patches)
- set(cross_compile riscv${BITS}-unknown-linux-gnu-)
-diff --git a/conf/linux64-defconfig b/conf/linux64-defconfig
-index c205076..a4f9138 100644
---- a/conf/linux64-defconfig
-+++ b/conf/linux64-defconfig
-@@ -3145,4 +3145,6 @@ CONFIG_DEBUG_SG=y
- CONFIG_RCU_EQS_DEBUG=y
- CONFIG_DEBUG_BLOCK_EXT_DEVT=y
- CONFIG_DEBUG_INFO=y
-+CONFIG_DEBUG_INFO_DWARF4=y
-+CONFIG_GDB_SCRIPTS=y
- #
 diff --git a/sm/src/mprv.S b/sm/src/mprv.S
 index 07f4605..e5e8fa5 100644
 --- a/sm/src/mprv.S
@@ -174,14 +150,54 @@ index 07f4605..e5e8fa5 100644
      li a0, 0
  CATCH_ERR(copy1out_check, t5)
      li a0, -1
-diff --git a/sdk/include/host/keystone_user.h b/sdk/include/host/keystone_user.h
-index 0680e68..33ce9ff 100644
---- a/sdk/include/host/keystone_user.h
-+++ b/sdk/include/host/keystone_user.h
-@@ -7,6 +7,7 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 7667392..eab78be 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -34,7 +34,7 @@ else()
+   set(ABI lp64d)
+ endif()
  
- #include <linux/ioctl.h>
- #include <linux/types.h>
-+#include <cstdint>
- // Linux generic TEE subsystem magic defined in <linux/tee.h>
- #define KEYSTONE_IOC_MAGIC 0xa4
+-set(ISA rv${BITS}imafdc)
++set(ISA rv${BITS}imafdc_hghi)
+ set(confdir ${CMAKE_SOURCE_DIR}/overlays/keystone/configs)
+ set(patchdir ${CMAKE_SOURCE_DIR}/overlays/keystone/patches)
+ set(cross_compile riscv${BITS}-buildroot-linux-gnu-)
+diff --git a/mkutils/plat/generic/run.mk b/mkutils/plat/generic/run.mk
+index 32f1523..fd9df2d 100644
+--- a/mkutils/plat/generic/run.mk
++++ b/mkutils/plat/generic/run.mk
+@@ -6,17 +6,30 @@ QEMU_PORT       ?= 9821
+ QEMU_DBG_PORT   ?= $(shell echo $$(( $(QEMU_PORT) + 1)) )
+ QEMU_DEBUG      := -gdb tcp::$(QEMU_DBG_PORT) -S
+ 
+-QEMU_MEM        ?= 2G
++QEMU_MEM        ?= 6G
+ QEMU_SMP        ?= 4
+ 
++export XVISOR   ?= $(KEYSTONE)/../xvisor
++
++# QEMU_FLAGS := -m $(QEMU_MEM) -smp $(QEMU_SMP) -nographic \
++#                 -machine virt,rom=$(BUILDROOT_BUILDDIR)/images/bootrom.bin \
++#                 -bios $(BUILDROOT_BUILDDIR)/images/fw_jump.elf \
++#                 -kernel $(BUILDROOT_BUILDDIR)/images/Image \
++#                 -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs.ext2,format=raw,id=hd0 \
++#                 -device virtio-blk-device,drive=hd0 \
++#                 -append "console=ttyS0 ro root=/dev/vda" \
++#                 -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
++#                 -device virtio-net-device,netdev=net0 \
++#                 -device virtio-rng-pci \
+ 
+ QEMU_FLAGS := -m $(QEMU_MEM) -smp $(QEMU_SMP) -nographic \
+                 -machine virt,rom=$(BUILDROOT_BUILDDIR)/images/bootrom.bin \
+                 -bios $(BUILDROOT_BUILDDIR)/images/fw_jump.elf \
+-                -kernel $(BUILDROOT_BUILDDIR)/images/Image \
++                -kernel $(XVISOR)/build/vmm.bin \
++                -initrd $(XVISOR)/build/disk.img \
++                -append 'vmm.bootcmd="vfs mount initrd /;vfs run /boot.xscript;vfs cat /system/banner.txt"' \
+                 -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs.ext2,format=raw,id=hd0 \
+                 -device virtio-blk-device,drive=hd0 \
+-                -append "console=ttyS0 ro root=/dev/vda" \
+                 -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
+                 -device virtio-net-device,netdev=net0 \
+                 -device virtio-rng-pci \
