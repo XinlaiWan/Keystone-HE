@@ -13,7 +13,7 @@ after cloning it.
 
 ## Building Keystone components
 
-- Apply the patch on Xvisor
+- Apply the patch on Xvisor.
 
 ```
 > cd keystone
@@ -27,6 +27,8 @@ after cloning it.
 
 ## Create a rootfs image for Xvisor
 
+- In the project root directory, run:
+
 ```
 > mkdir rootfs; tar -xf keystone/build-generic64/buildroot.build/images/rootfs.tar -C rootfs
 > cd rootfs; find ./ | cpio -o -H newc > ../rootfs.img; cd -; rm -rf rootfs
@@ -34,7 +36,7 @@ after cloning it.
 
 ## Building Xvisor
 
-- Apply the patch on Xvisor
+- Apply the patch on Xvisor.
 
 ```
 > cd xvisor
@@ -50,16 +52,30 @@ after cloning it.
 ## Boot native Xvisor on OpenSBI Firmware with Keystone SM
 
 - In the Keystone directory, use `make run` to start the modified Keystone boot flow in QEMU.
-- In the Xvisor terminal, run:
+- In the initialized Xvisor terminal, run:
 
 ```
 > vdisk attach guest0/virtio-blk0 vda
-> vdisk list
+```
+
+Then, run `vdisk list` and we should see:
+
+```
+--------------------------------------------------------------------------------
+ Name                           Block Size        Attached Block Device         
+--------------------------------------------------------------------------------
+ guest0/virtio-blk0             512               vda                           
+--------------------------------------------------------------------------------
+```
+
+After that, run:
+
+```
 > guest kick guest0
 > vserial bind guest0/uart0
 ```
 
-- In the `guest0/uart0` terminal, run:
+- Next, in the initialized `guest0/uart0` terminal, run:
 
 ```
 > linux_memory_size 0x80000000
@@ -67,4 +83,4 @@ after cloning it.
 > autoexec
 ```
 
-- When the Linux booting has been started, follow the rest of [1.2.1.4.1. Launching Keystone in QEMU](https://docs.keystone-enclave.org/en/latest/Getting-Started/QEMU-Run-Tests.html) of the Keystone documentation to run the test enclaves.
+- When the Linux booting has been started, follow the rest of [1.2.1.4.1. Launching Keystone in QEMU](https://docs.keystone-enclave.org/en/latest/Getting-Started/QEMU-Run-Tests.html) in the Keystone documentation to run the test enclaves.
