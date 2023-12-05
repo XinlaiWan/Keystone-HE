@@ -25,6 +25,13 @@ after cloning it.
   - Note: when encountering the dependency issue between `keystone-examples` and `opensbi`, 
     run `BUILDROOT_TARGET=keystone-examples-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
 
+## Create a rootfs image for Xvisor
+
+```
+> mkdir rootfs; tar -xf keystone/build-generic64/buildroot.build/images/rootfs.tar -C rootfs
+> cd rootfs; find ./ | cpio -o -H newc > ../rootfs.img; cd -; rm -rf rootfs
+```
+
 ## Building Xvisor
 
 - Apply the patch on Xvisor
@@ -37,7 +44,7 @@ after cloning it.
 - Follow `xvisor/docs/riscv/riscv64-qemu.txt` to build Xvisor VMM and disk image.
   - Generally we can go through the steps of 2, 3, 4, 5, 13.
   - In Step 4 and 5, add `CROSS_COMPILE=riscv64-unknown-linux-gnu-` in front of the `make` commands.
-  - In Step 13, use `images/rootfs.img` as BusyBox 1.33.1 RAMDISK and `keystone/build-generic64/buildroot.build/images/Image` as Linux kernel image.
+  - In Step 13, use `../rootfs.img` as rootfs image and `../keystone/build-generic64/buildroot.build/images/Image` as Linux kernel image.
   - In Step 13, delete `-B 1024` in the last `genext2fs` command.
 
 ## Boot native Xvisor on OpenSBI Firmware with Keystone SM
