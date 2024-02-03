@@ -1,155 +1,3 @@
-diff --git a/sm/src/mprv.S b/sm/src/mprv.S
-index 07f4605..e5e8fa5 100644
---- a/sm/src/mprv.S
-+++ b/sm/src/mprv.S
-@@ -1,10 +1,14 @@
- #if __riscv_xlen == 64
- # define STORE    sd
- # define LOAD     ld
-+# define HSTORE   hsv.d
-+# define HLOAD    hlv.d
- # define LOG_REGBYTES 3
- #elif __riscv_xlen == 32
- # define STORE    sw
- # define LOAD     lw
-+# define HSTORE   hsv.w
-+# define HLOAD    hlv.w
- # define LOG_REGBYTES 2
- #endif
- 
-@@ -47,6 +51,20 @@
-     slli reg, reg, 17  ;\
-     csrc mstatus, reg
- 
-+#define CHECK_SPP(r_mstatus, r_spp, jumpname)  \
-+    srli r_spp, r_mstatus, 8                  ;\
-+    andi r_spp, r_spp, 1                      ;\
-+    bnez r_spp, jumpname##_hyp
-+
-+#define USE_HYP_MODE(jumpname)  \
-+        j jumpname##_hyp_end   ;\
-+        .align 4               ;\
-+    jumpname##_hyp :
-+
-+#define END_HYP_MODE(jumpname)  \
-+        .align 4               ;\
-+    jumpname##_hyp_end :
-+
- 
- 
- .global copy_block_to_sm
-@@ -61,6 +79,7 @@ copy_block_to_sm:
-     # a5: mstatus
- TRY(copy_block_in_check, a2, a3, a4, a5)
-     SET_MPRV(t0)
-+    CHECK_SPP(a5, a7, copy_block_in_load)
-     LOAD t0, 0*REGBYTES(a1)
-     LOAD t1, 1*REGBYTES(a1)
-     LOAD t2, 2*REGBYTES(a1)
-@@ -69,6 +88,23 @@ TRY(copy_block_in_check, a2, a3, a4, a5)
-     LOAD t5, 5*REGBYTES(a1)
-     LOAD t6, 6*REGBYTES(a1)
-     LOAD a6, 7*REGBYTES(a1)
-+    USE_HYP_MODE(copy_block_in_load)
-+    HLOAD t0, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t1, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t2, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t3, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t4, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t5, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD t6, (a1)
-+    addi  a1, a1, REGBYTES
-+    HLOAD a6, (a1)
-+    END_HYP_MODE(copy_block_in_load)
-     UNSET_MPRV(a1)
-     STORE t0, 0*REGBYTES(a0)
-     STORE t1, 1*REGBYTES(a0)
-@@ -93,7 +129,11 @@ copy_word_to_sm:
-     # a1: src
- TRY(copy_word_in_check, t1, t2, t3, t4)
-     SET_MPRV(t5)
-+    CHECK_SPP(t4, a2, copy_word_in_load)
-     LOAD t0, 0x00(a1)
-+    USE_HYP_MODE(copy_word_in_load)
-+    HLOAD t0, (a1)
-+    END_HYP_MODE(copy_word_in_load)
-     UNSET_MPRV(t5)
-     STORE t0, 0x00(a0)
-     li a0, 0
-@@ -111,7 +151,11 @@ copy1_to_sm:
-     # a1: src
- TRY(copy1in_check, t1, t2, t3, t4)
-     SET_MPRV(t5)
-+    CHECK_SPP(t4, a2, copy1in_load)
-     lb t0, 0x00(a1)
-+    USE_HYP_MODE(copy1in_load)
-+    hlv.b t0, (a1)
-+    END_HYP_MODE(copy1in_load)
-     UNSET_MPRV(t5)
-     sb t0, 0x00(a0)
-     li a0, 0
-@@ -143,6 +187,7 @@ TRY(copy_block_out_check, a2, a3, a4, a5)
-     LOAD t6, 6*REGBYTES(a1)
-     LOAD a6, 7*REGBYTES(a1)
-     SET_MPRV(a1)
-+    CHECK_SPP(a5, a7, copy_block_out_store)
-     STORE t0, 0*REGBYTES(a0)
-     STORE t1, 1*REGBYTES(a0)
-     STORE t2, 2*REGBYTES(a0)
-@@ -151,6 +196,23 @@ TRY(copy_block_out_check, a2, a3, a4, a5)
-     STORE t5, 5*REGBYTES(a0)
-     STORE t6, 6*REGBYTES(a0)
-     STORE a6, 7*REGBYTES(a0)
-+    USE_HYP_MODE(copy_block_out_store)
-+    HSTORE t0, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t1, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t2, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t3, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t4, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t5, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE t6, (a0)
-+    addi   a0, a0, REGBYTES
-+    HSTORE a6, (a0)
-+    END_HYP_MODE(copy_block_out_store)
-     UNSET_MPRV(a1)
-     li a0, 0
- CATCH_ERR(copy_block_out_check, a1)
-@@ -168,7 +230,11 @@ copy_word_from_sm:
- TRY(copy_word_out_check, t1, t2, t3, t4)
-     LOAD t0, 0x00(a1)
-     SET_MPRV(t5)
-+    CHECK_SPP(t4, a2, copy_word_out_store)
-     STORE t0, 0x00(a0)
-+    USE_HYP_MODE(copy_word_out_store)
-+    HSTORE t0, (a1)
-+    END_HYP_MODE(copy_word_out_store)
-     li a0, 0
- CATCH_ERR(copy_word_out_check, t5)
-     li a0, -1
-@@ -185,7 +251,11 @@ copy1_from_sm:
- TRY(copy1out_check, t1, t2, t3, t4)
-     lb t0, 0x00(a1)
-     SET_MPRV(t5)
-+    CHECK_SPP(t4, a2, copy1out_store)
-     sb t0, 0x00(a0)
-+    USE_HYP_MODE(copy1out_store)
-+    hsv.b t0, (a1)
-+    END_HYP_MODE(copy1out_store)
-     li a0, 0
- CATCH_ERR(copy1out_check, t5)
-     li a0, -1
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 7667392..eab78be 100644
 --- a/CMakeLists.txt
@@ -211,3 +59,98 @@ index f6e0086..080aa79 100644
  CONFIG_RCU_EQS_DEBUG=y
 +CONFIG_GDB_SCRIPTS=y
 +CONFIG_DEBUG_INFO_DWARF4=y
+diff --git a/overlays/keystone/configs/qemu_riscv64_virt_defconfig b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
+index 1d348ab..42b097e 100644
+--- a/overlays/keystone/configs/qemu_riscv64_virt_defconfig
++++ b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
+@@ -30,3 +30,4 @@ BR2_PACKAGE_KEYSTONE_DRIVER=y
+ BR2_PACKAGE_HOST_KEYSTONE_SDK=y
+ BR2_PACKAGE_KEYSTONE_RUNTIME=y
+ BR2_PACKAGE_KEYSTONE_EXAMPLES=y
++BR2_STRIP_strip=n
+diff --git a/sm/src/enclave.c b/sm/src/enclave.c
+index dba749d..0fff49f 100644
+--- a/sm/src/enclave.c
++++ b/sm/src/enclave.c
+@@ -45,6 +45,7 @@ static inline void context_switch_to_enclave(struct sbi_trap_regs* regs,
+   swap_prev_state(&enclaves[eid].threads[0], regs, 1);
+   swap_prev_mepc(&enclaves[eid].threads[0], regs, regs->mepc);
+   swap_prev_mstatus(&enclaves[eid].threads[0], regs, regs->mstatus);
++  swap_prev_hstatus(&enclaves[eid].threads[0]);
+ 
+   uintptr_t interrupts = 0;
+   csr_write(mideleg, interrupts);
+@@ -53,6 +54,9 @@ static inline void context_switch_to_enclave(struct sbi_trap_regs* regs,
+     // passing parameters for a first run
+     regs->mepc = (uintptr_t) enclaves[eid].pa_params.dram_base - 4; // regs->mepc will be +4 before sbi_ecall_handler return
+     regs->mstatus = (1 << MSTATUS_MPP_SHIFT);
++    // #if __riscv_xlen == 64
++    // regs->mstatus |= MSTATUS_MPV;
++    // #endif
+     // $a1: (PA) DRAM base,
+     regs->a1 = (uintptr_t) enclaves[eid].pa_params.dram_base;
+     // $a2: (PA) DRAM size,
+@@ -108,6 +112,7 @@ static inline void context_switch_to_host(struct sbi_trap_regs *regs,
+   swap_prev_state(&enclaves[eid].threads[0], regs, return_on_resume);
+   swap_prev_mepc(&enclaves[eid].threads[0], regs, regs->mepc);
+   swap_prev_mstatus(&enclaves[eid].threads[0], regs, regs->mstatus);
++  swap_prev_hstatus(&enclaves[eid].threads[0]);
+ 
+   switch_vector_host();
+ 
+diff --git a/sm/src/thread.c b/sm/src/thread.c
+index 2df9477..cd1af8c 100644
+--- a/sm/src/thread.c
++++ b/sm/src/thread.c
+@@ -21,12 +21,23 @@ void swap_prev_mstatus(struct thread_state* thread, struct sbi_trap_regs* regs,
+   uintptr_t mstatus_mask = MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_SPP |
+                             MSTATUS_MPP | MSTATUS_FS | MSTATUS_SUM |
+                             MSTATUS_MXR;
++  // #if __riscv_xlen == 64
++  // mstatus_mask |= MSTATUS_MPV;
++  // #endif
+ 
+   uintptr_t tmp = thread->prev_mstatus;
+   thread->prev_mstatus = (current_mstatus & ~mstatus_mask) | (current_mstatus & mstatus_mask);
+   regs->mstatus = (current_mstatus & ~mstatus_mask) | tmp;
+ }
+ 
++void swap_prev_hstatus(struct thread_state* thread) {
++  uintptr_t hstatus_mask = HSTATUS_SPV | HSTATUS_SPVP;
++  uintptr_t tmp = thread->prev_hstatus;
++  uintptr_t current_hstatus = csr_read(hstatus);
++  thread->prev_hstatus = current_hstatus;
++  csr_write(hstatus, (current_hstatus & ~hstatus_mask) | tmp);
++}
++
+ /* Swaps the entire s-mode visible state, general registers and then csrs */
+ void swap_prev_state(struct thread_state* thread, struct sbi_trap_regs* regs, int return_on_resume)
+ {
+@@ -95,6 +106,7 @@ void clean_state(struct thread_state* state){
+     prev[i] = 0;
+   }
+ 
++  // state->prev_mstatus = 0x8000000000;
+   state->prev_mpp = -1; // 0x800;
+   clean_smode_csrs(state);
+ }
+diff --git a/sm/src/thread.h b/sm/src/thread.h
+index ba6ea5a..39290f2 100644
+--- a/sm/src/thread.h
++++ b/sm/src/thread.h
+@@ -71,6 +71,7 @@ struct thread_state
+   int prev_mpp;
+   uintptr_t prev_mepc;
+   uintptr_t prev_mstatus;
++  uintptr_t prev_hstatus;
+   struct csrs prev_csrs;
+   struct ctx prev_state;
+ };
+@@ -79,6 +80,7 @@ struct thread_state
+ void swap_prev_state(struct thread_state* state, struct sbi_trap_regs* regs, int return_on_resume);
+ void swap_prev_mepc(struct thread_state* state, struct sbi_trap_regs* regs, uintptr_t mepc);
+ void swap_prev_mstatus(struct thread_state* state, struct sbi_trap_regs* regs, uintptr_t mstatus);
++void swap_prev_hstatus(struct thread_state* state);
+ void swap_prev_smode_csrs(struct thread_state* thread);
+ 
+ void switch_vector_enclave();
