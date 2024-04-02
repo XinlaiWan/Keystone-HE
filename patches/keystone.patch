@@ -12,17 +12,16 @@ index 7667392..eab78be 100644
  set(patchdir ${CMAKE_SOURCE_DIR}/overlays/keystone/patches)
  set(cross_compile riscv${BITS}-buildroot-linux-gnu-)
 diff --git a/mkutils/plat/generic/run.mk b/mkutils/plat/generic/run.mk
-index 32f1523..8ceaf6a 100644
+index 32f1523..ac5dc58 100644
 --- a/mkutils/plat/generic/run.mk
 +++ b/mkutils/plat/generic/run.mk
-@@ -6,17 +6,33 @@ QEMU_PORT       ?= 9821
+@@ -6,23 +6,40 @@ QEMU_PORT       ?= 9821
  QEMU_DBG_PORT   ?= $(shell echo $$(( $(QEMU_PORT) + 1)) )
  QEMU_DEBUG      := -gdb tcp::$(QEMU_DBG_PORT) -S
  
 -QEMU_MEM        ?= 2G
--QEMU_SMP        ?= 4
 +QEMU_MEM        ?= 6G
-+QEMU_SMP        ?= 1
+ QEMU_SMP        ?= 4
  
 +export XVISOR   ?= $(KEYSTONE)/../xvisor
  
@@ -53,6 +52,13 @@ index 32f1523..8ceaf6a 100644
                  -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
                  -device virtio-net-device,netdev=net0 \
                  -device virtio-rng-pci \
+ 
+ ifneq ($(KEYSTONE_DEBUG),)
+         QEMU_FLAGS += $(QEMU_DEBUG)
++        QEMU_FLAGS_TWO_GUESTS += $(QEMU_DEBUG)
+ endif
+ 
+ run:
 diff --git a/overlays/keystone/configs/linux64-defconfig b/overlays/keystone/configs/linux64-defconfig
 index f6e0086..d51fdcb 100644
 --- a/overlays/keystone/configs/linux64-defconfig

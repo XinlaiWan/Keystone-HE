@@ -85,6 +85,11 @@ After that, run:
 
 - When the Linux booting has been started, follow the rest of [1.2.1.4.1. Launching Keystone in QEMU](https://docs.keystone-enclave.org/en/latest/Getting-Started/QEMU-Run-Tests.html) in the Keystone documentation to run the test enclaves.
 
+```
+> modprobe keystone-driver
+> /usr/share/keystone/examples/hello.ke
+```
+
 ## Boot two Xvisor guests
 
 - Device trees used in Xvisor:
@@ -112,7 +117,7 @@ or
 ```
 vserial bind guest1/uart0
 ```
-and switch between them by Esc-x-q
+and switch between guests by `Esc-x-q`
 
 - Linux boot
 
