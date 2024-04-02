@@ -1,3 +1,79 @@
+diff --git a/arch/riscv/cpu/generic/cpu_vcpu_nested.c b/arch/riscv/cpu/generic/cpu_vcpu_nested.c
+index d5c68b8f..ab696135 100644
+--- a/arch/riscv/cpu/generic/cpu_vcpu_nested.c
++++ b/arch/riscv/cpu/generic/cpu_vcpu_nested.c
+@@ -248,56 +248,6 @@ static void nested_swtlb_deinit(struct vmm_vcpu *vcpu)
+ #define NESTED_MMU_OFF_BLOCK_SIZE	PGTBL_L1_BLOCK_SIZE
+ #endif
+ 
+-enum nested_xlate_access {
+-	NESTED_XLATE_LOAD = 0,
+-	NESTED_XLATE_STORE,
+-	NESTED_XLATE_FETCH,
+-};
+-
+-struct nested_xlate_context {
+-	/* VCPU for which translation is being done */
+-	struct vmm_vcpu *vcpu;
+-
+-	/* Original access type for fault generation */
+-	enum nested_xlate_access original_access;
+-
+-	/* Details from CSR or instruction */
+-	bool smode;
+-	unsigned long sstatus;
+-	bool hlvx;
+-
+-	/* Final host region details */
+-	physical_addr_t host_pa;
+-	physical_size_t host_sz;
+-	u32 host_reg_flags;
+-
+-	/* Fault details */
+-	physical_size_t nostage_page_sz;
+-	physical_size_t gstage_page_sz;
+-	physical_size_t vsstage_page_sz;
+-	unsigned long scause;
+-	unsigned long stval;
+-	unsigned long htval;
+-};
+-
+-#define nested_xlate_context_init(__x, __v, __a, __smode, __sstatus, __hlvx)\
+-do {									\
+-	(__x)->vcpu = (__v);						\
+-	(__x)->original_access = (__a);					\
+-	(__x)->smode = (__smode);					\
+-	(__x)->sstatus = (__sstatus);					\
+-	(__x)->hlvx = (__hlvx);						\
+-	(__x)->host_pa = 0;						\
+-	(__x)->host_sz = 0;						\
+-	(__x)->host_reg_flags = 0;					\
+-	(__x)->nostage_page_sz = 0;					\
+-	(__x)->gstage_page_sz = 0;					\
+-	(__x)->vsstage_page_sz = 0;					\
+-	(__x)->scause = 0;						\
+-	(__x)->stval = 0;						\
+-	(__x)->htval = 0;						\
+-} while (0)
+-
+ static int nested_nostage_perm_check(enum nested_xlate_access guest_access,
+ 				     u32 reg_flags)
+ {
+@@ -632,6 +582,14 @@ static int nested_xlate_gstage(struct nested_xlate_context *xc,
+ 	return VMM_OK;
+ }
+ 
++int nested_xlate_gstage_wrapper(struct nested_xlate_context *xc,
++			       physical_addr_t guest_gpa,
++			       enum nested_xlate_access guest_access)
++{
++	return nested_xlate_gstage(xc, guest_gpa, guest_access);
++}
++
++
+ static void nested_vsstage_write_fault(struct nested_xlate_context *xc,
+ 				       physical_addr_t guest_gva)
+ {
 diff --git a/arch/riscv/cpu/generic/cpu_vcpu_sbi.c b/arch/riscv/cpu/generic/cpu_vcpu_sbi.c
 index ebe34465..aac68660 100644
 --- a/arch/riscv/cpu/generic/cpu_vcpu_sbi.c
@@ -20,17 +96,104 @@ index ebe34465..aac68660 100644
  const struct cpu_vcpu_sbi_extension *cpu_vcpu_sbi_find_extension(
 diff --git a/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c b/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c
 new file mode 100644
-index 00000000..9f771dfc
+index 00000000..205ab236
 --- /dev/null
 +++ b/arch/riscv/cpu/generic/cpu_vcpu_sbi_keystone.c
-@@ -0,0 +1,35 @@
+@@ -0,0 +1,130 @@
 +#include <vmm_error.h>
 +#include <vmm_macros.h>
 +#include <vmm_manager.h>
++#include <vmm_stdio.h>
++#include <vmm_scheduler.h>
 +#include <cpu_sbi.h>
 +#include <cpu_vcpu_sbi.h>
++#include <cpu_vcpu_nested.h>
 +#include <riscv_sbi.h>
 +
++// The struct definitions conform to the corresponding ones in
++// keystone/linux-keystone-driver/keystone-sbi.h and keystone_user.h
++struct keystone_sbi_pregion_t
++{
++    physical_addr_t paddr;
++    size_t size;
++};
++
++struct runtime_params_t {
++    virtual_addr_t runtime_entry;
++    virtual_addr_t user_entry;
++    physical_addr_t untrusted_ptr;
++    physical_size_t untrusted_size;
++};
++
++struct keystone_sbi_create_t
++{
++    // Memory regions for the enclave
++    struct keystone_sbi_pregion_t epm_region;
++    struct keystone_sbi_pregion_t utm_region;
++
++    // physical addresses
++    physical_addr_t runtime_paddr;
++    physical_addr_t user_paddr;
++    physical_addr_t free_paddr;
++
++    // Parameters
++    struct runtime_params_t params;
++};
++
++// copy enclave creation args to the hypervisor address space
++#ifdef CONFIG_64BIT
++// HLV.D a2, (a0)
++# define HLOAD_INST       ".word	0x6c054673\n"
++# define STORE_INST       "sd a2, 0(a1)\n"
++# define SHIFT_LOAD_ADDR  "addi a0, a0, 8\naddi a1, a1, 8\n"
++# define STEP_WIDTH       8
++#else
++// HLV.W a2, (a0)
++# define HLOAD_INST       ".word	0x68054673\n"
++# define STORE_INST       "sw a2, 0(a1)\n"
++# define SHIFT_LOAD_ADDR  "addi a0, a0, 4\naddi a1, a1, 4\n"
++# define STEP_WIDTH       4
++#endif
++
++void __attribute__((noinline)) copy_create_args(struct keystone_sbi_create_t* old_args_ptr,
++					struct keystone_sbi_create_t* new_args_ptr)
++{
++	unsigned long offset = 0;
++	while (offset < sizeof(struct keystone_sbi_create_t)) {
++		asm volatile (HLOAD_INST \
++			STORE_INST \
++			SHIFT_LOAD_ADDR \
++		);
++		offset += STEP_WIDTH;
++	}
++}
++
++// convert GPA parameters passed from VMs to SPA
++#define keystone_ecall_gpa2hpa(xc, addr_ptr) ({ \
++	rc = nested_xlate_gstage_wrapper(&xc, (physical_addr_t)*addr_ptr, NESTED_XLATE_LOAD); \
++	if (rc) \
++		vmm_panic("ERROR: Couldn't convert guest physical address to supervisor physical address!\n"); \
++	*addr_ptr = xc.host_pa | (*addr_ptr & (xc.host_sz - 1)); \
++})
++
++#define update_create_args(new_create_args) ({ \
++    struct vmm_vcpu *vcpu = vmm_scheduler_current_vcpu(); \
++	struct nested_xlate_context xc; \
++	struct riscv_priv_nested *npriv; \
++	int rc; \
++	npriv = riscv_nested_priv(vcpu); \
++	nested_xlate_context_init(&xc, vcpu, NESTED_XLATE_LOAD, \
++			(npriv->hstatus & HSTATUS_SPVP) ? TRUE : FALSE, \
++			csr_read(CSR_VSSTATUS), false); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.epm_region.paddr); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.utm_region.paddr); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.runtime_paddr); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.user_paddr); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.free_paddr); \
++	keystone_ecall_gpa2hpa(xc, &new_create_args.params.untrusted_ptr); \
++})
++
++// The Keystone SBI ECALL handler
 +static int vcpu_sbi_keystone_ecall(struct vmm_vcpu *vcpu, unsigned long ext_id,
 +			       unsigned long func_id, unsigned long *args,
 +			       struct cpu_vcpu_sbi_return *out)
@@ -40,6 +203,14 @@ index 00000000..9f771dfc
 +
 +	switch (func_id) {
 +	case SBI_SM_CREATE_ENCLAVE:
++	    struct keystone_sbi_create_t* create_args_ptr = (struct keystone_sbi_create_t*)args[0];
++		struct keystone_sbi_create_t new_create_args;
++        copy_create_args(create_args_ptr, &new_create_args);
++		update_create_args(new_create_args);
++		hret = sbi_ecall(SBI_EXT_KEYSTONE, func_id, (unsigned long)&new_create_args, args[1], args[2], args[3], args[4], args[5]);
++		ret = hret.error;
++		out->value = hret.value;
++		break;
 +	case SBI_SM_DESTROY_ENCLAVE:
 +	case SBI_SM_RUN_ENCLAVE:
 +	case SBI_SM_RESUME_ENCLAVE:
@@ -59,6 +230,71 @@ index 00000000..9f771dfc
 +	.extid_end = SBI_EXT_KEYSTONE,
 +	.handle = vcpu_sbi_keystone_ecall,
 +};
+diff --git a/arch/riscv/cpu/generic/include/cpu_vcpu_nested.h b/arch/riscv/cpu/generic/include/cpu_vcpu_nested.h
+index 63f6b443..5c258741 100644
+--- a/arch/riscv/cpu/generic/include/cpu_vcpu_nested.h
++++ b/arch/riscv/cpu/generic/include/cpu_vcpu_nested.h
+@@ -30,6 +30,60 @@ struct vmm_vcpu;
+ struct cpu_vcpu_trap;
+ struct arch_regs;
+ 
++enum nested_xlate_access {
++	NESTED_XLATE_LOAD = 0,
++	NESTED_XLATE_STORE,
++	NESTED_XLATE_FETCH,
++};
++
++struct nested_xlate_context {
++	/* VCPU for which translation is being done */
++	struct vmm_vcpu *vcpu;
++
++	/* Original access type for fault generation */
++	enum nested_xlate_access original_access;
++
++	/* Details from CSR or instruction */
++	bool smode;
++	unsigned long sstatus;
++	bool hlvx;
++
++	/* Final host region details */
++	physical_addr_t host_pa;
++	physical_size_t host_sz;
++	u32 host_reg_flags;
++
++	/* Fault details */
++	physical_size_t nostage_page_sz;
++	physical_size_t gstage_page_sz;
++	physical_size_t vsstage_page_sz;
++	unsigned long scause;
++	unsigned long stval;
++	unsigned long htval;
++};
++
++#define nested_xlate_context_init(__x, __v, __a, __smode, __sstatus, __hlvx)\
++do {									\
++	(__x)->vcpu = (__v);						\
++	(__x)->original_access = (__a);					\
++	(__x)->smode = (__smode);					\
++	(__x)->sstatus = (__sstatus);					\
++	(__x)->hlvx = (__hlvx);						\
++	(__x)->host_pa = 0;						\
++	(__x)->host_sz = 0;						\
++	(__x)->host_reg_flags = 0;					\
++	(__x)->nostage_page_sz = 0;					\
++	(__x)->gstage_page_sz = 0;					\
++	(__x)->vsstage_page_sz = 0;					\
++	(__x)->scause = 0;						\
++	(__x)->stval = 0;						\
++	(__x)->htval = 0;						\
++} while (0)
++
++int nested_xlate_gstage_wrapper(struct nested_xlate_context *xc,
++				 physical_addr_t guest_gpa,
++			     enum nested_xlate_access guest_access);
++
+ /** Function to flush nested software TLB */
+ void cpu_vcpu_nested_swtlb_flush(struct vmm_vcpu *vcpu,
+ 				 physical_addr_t guest_gpa,
 diff --git a/arch/riscv/cpu/generic/include/riscv_sbi.h b/arch/riscv/cpu/generic/include/riscv_sbi.h
 index eadd6bc9..3b9d0450 100644
 --- a/arch/riscv/cpu/generic/include/riscv_sbi.h
@@ -158,6 +394,139 @@ index a43b8b1e..bdfec082 100644
  	};
  
  	smb {
+diff --git a/tests/riscv/virt64/linux/virt64_two_guests.dts b/tests/riscv/virt64/linux/virt64_two_guests.dts
+new file mode 100644
+index 00000000..fc824ba0
+--- /dev/null
++++ b/tests/riscv/virt64/linux/virt64_two_guests.dts
+@@ -0,0 +1,127 @@
++
++/dts-v1/;
++
++/ {
++	model = "Virt64";
++	compatible = "linux,dummy-virt";
++	#address-cells = <2>;
++	#size-cells = <2>;
++
++	chosen {
++		stdout-path = &uart0;
++	};
++
++	aliases { };
++
++	cpus {
++		#address-cells = <1>;
++		#size-cells = <0>;
++	};
++
++	reserved-memory {
++		#address-cells = <2>;
++		#size-cells = <2>;
++		ranges;
++
++		SHMEM0: shmem@58000000 {
++			compatible = "shared-dma-pool";
++			no-map;
++			reg = <0x0 0x58000000 0x0 0x01000000>;
++		};
++	};
++
++	memory@80000000 {
++		device_type = "memory";
++		reg = <0x00000000 0x80000000 0 0x80000000>;
++	};
++
++	smb {
++		compatible = "simple-bus";
++		#address-cells = <2>;
++		#size-cells = <2>;
++		interrupt-parent = <&plic>;
++		ranges;
++
++		plic: interrupt-controller@c000000 {
++			compatible = "riscv,plic0";
++			interrupt-controller;
++			#interrupt-cells = <1>;
++			riscv,max-priority = <7>;
++			riscv,ndev = <31>;
++			reg = <0x0 0x0c000000 0 0x04000000>;
++		};
++
++		uart0: uart@10000000 {
++			compatible = "ns16550a";
++			reg = <0x0 0x10000000 0x0 0x100>;
++			interrupts = <10>;
++			clock-frequency = <3686400>;
++		};
++
++		rtc@10003000 {
++			compatible = "google,goldfish-rtc";
++			reg = <0x0 0x10003000 0x0 0x1000>;
++			interrupts = <11>;
++		};
++
++		virtio_net@20000000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20000000 0x0 0x1000>;
++			interrupts = <1>;
++			dma-coherent;
++		};
++
++		virtio_block@20001000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20001000 0x0 0x1000>;
++			interrupts = <2>;
++			dma-coherent;
++		};
++
++		virtio_block@20005000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20005000 0x0 0x1000>;
++			interrupts = <6>;
++			dma-coherent;
++		};
++
++		virtio_console@20002000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20002000 0x0 0x1000>;
++			interrupts = <3>;
++			dma-coherent;
++		};
++
++		virtio_rpmsg@20003000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20003000 0x0 0x1000>;
++			interrupts = <4>;
++			dma-coherent;
++		};
++
++		virtio_input@20004000 {
++			compatible = "virtio,mmio";
++			reg = <0x0 0x20004000 0x0 0x1000>;
++			interrupts = <5>;
++			dma-coherent;
++		};
++
++		simplefb@50000000 {
++			compatible = "simple-framebuffer";
++			reg = <0x0 0x50000000 0x0 0x1000000>;
++			width = <1024>;
++			height = <768>;
++			stride = <2048>;
++			format = "r5g6b5";
++		};
++
++		shmem0 {
++			compatible = "ikwzm,udmabuf-0.10.a";
++			device-name = "shmem0";
++			minor-number = <0>;
++			size = <0x01000000>;
++			memory-region = <&SHMEM0>;
++			dma-coherent;
++		};
++	};
++};
 diff --git a/tests/riscv/virt64/virt64-guest.dts b/tests/riscv/virt64/virt64-guest.dts
 index 5ffe044e..8bb26208 100644
 --- a/tests/riscv/virt64/virt64-guest.dts
@@ -179,6 +548,201 @@ index 5ffe044e..8bb26208 100644
  		};
  
  		simplefb {
+diff --git a/tests/riscv/virt64/virt64-guest_two_guests.dts b/tests/riscv/virt64/virt64-guest_two_guests.dts
+new file mode 100644
+index 00000000..309824a9
+--- /dev/null
++++ b/tests/riscv/virt64/virt64-guest_two_guests.dts
+@@ -0,0 +1,189 @@
++
++/dts-v1/;
++
++/ {
++	model = "virt64";
++	device_type = "guest";
++	sbi_version = <2>;
++
++	aliases {
++		mem0 = &MEM0;
++		net0 = &NET0;
++		disk0 = &DISK0;
++		shmem0 = &SHMEM0;
++	};
++
++	vcpu_template {
++		device_type = "vcpu";
++		compatible = "riscv,generic";
++		riscv,isa = "rv64imafdch_sstc";
++		start_pc = <0x00000000>;
++		poweroff;
++	};
++
++	aspace {
++		guest_irq_count = <1024>;
++
++		nor_flash0 {
++			manifest_type = "real";
++			address_type = "memory";
++			guest_physical_addr = <0x00000000>;
++			physical_size = <0x06000000>;
++			device_type = "alloced_rom";
++			align_order = <21>; /* Align alloced memory to 2MB */
++		};
++
++		plic {
++			manifest_type = "virtual";
++			address_type = "memory";
++			guest_physical_addr = <0x0c000000>;
++			physical_size = <0x4000000>;
++			device_type = "pic";
++			compatible = "sifive,plic0";
++			parent_irq = <10>;
++			num_irq = <31>;
++			max_priority = <7>;
++		};
++
++		uart0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			guest_physical_addr = <0x10000000>;
++			physical_size = <0x1000>;
++			device_type = "serial";
++			compatible = "ns16550a";
++			fifo_size = <1024>;
++			interrupts = <10>;
++		};
++
++		vminfo {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "sys";
++			compatible = "vminfo-0.1";
++			guest_physical_addr = <0x10001000>;
++			physical_size = <0x1000>;
++			ram0_base = <0x80000000>;
++			ram0_size = <0x80000000>;
++		};
++
++		simplefb {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "display";
++			compatible = "simplefb-0.1";
++			guest_physical_addr = <0x10002000>;
++			physical_size = <0x1000>;
++			match_fbdev = "fb0"; /* Override this if required */
++			base = <0x50000000>; /* Override this if required */
++		};
++
++		rtc {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "rtc";
++			compatible = "google,goldfish-rtc";
++			guest_physical_addr = <0x10003000>;
++			physical_size = <0x1000>;
++			interrupts = <11>;
++		};
++
++		NET0: virtio-net0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <1>;
++			guest_physical_addr = <0x20000000>;
++			physical_size = <0x1000>;
++			switch = ""; /* Override this before guest creation */
++			interrupts = <1>;
++		};
++
++		DISK0: virtio-blk0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <2>;
++			guest_physical_addr = <0x20001000>;
++			physical_size = <0x1000>;
++			blkdev = ""; /* Override this before guest creation */
++			interrupts = <2>;
++		};
++
++		DISK1: virtio-blk1 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <2>;
++			guest_physical_addr = <0x20005000>;
++			physical_size = <0x1000>;
++			blkdev = ""; /* Override this before guest creation */
++			interrupts = <6>;
++		};
++
++		virtio-con0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <3>;
++			guest_physical_addr = <0x20002000>;
++			physical_size = <0x1000>;
++			interrupts = <3>;
++		};
++
++		virtio-rpmsg0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <7>;
++			guest_physical_addr = <0x20003000>;
++			physical_size = <0x1000>;
++			interrupts = <4>;
++			node_ns_name = "rpmsg_chrdev";
++		};
++
++		virtio-input0 {
++			manifest_type = "virtual";
++			address_type = "memory";
++			device_type = "virtio";
++			compatible = "virtio,mmio";
++			virtio_type = <18>;
++			guest_physical_addr = <0x20004000>;
++			physical_size = <0x1000>;
++			interrupts = <5>;
++		};
++
++		videomem {
++			manifest_type = "real";
++			address_type = "memory";
++			guest_physical_addr = <0x50000000>;
++			physical_size = <0x01000000>;
++			align_order = <21>; /* Align alloced memory to 2MB */
++			map_order = <24>; /* Allocate memory in-terms of 16MB mappings */
++			device_type = "alloced_ram";
++		};
++
++		SHMEM0: shmem {
++			manifest_type = "real";
++			address_type = "memory";
++			guest_physical_addr = <0x58000000>;
++			physical_size = <0x01000000>;
++			device_type = "shared_ram";
++			shared_mem = ""; /* Override this before guest creation */
++		};
++
++		MEM0: mem0 {
++			manifest_type = "real";
++			address_type = "memory";
++			guest_physical_addr = <0x80000000>;
++			physical_size = <0x00000000>; /* Override this before guest creation */
++			align_order = <21>; /* Align alloced memory to 2MB */
++			device_type = "alloced_ram";
++		};
++	};
++};
 diff --git a/tests/riscv/virt64/xscript/one_guest_virt64.xscript b/tests/riscv/virt64/xscript/one_guest_virt64.xscript
 index 262a96e3..c942ee14 100644
 --- a/tests/riscv/virt64/xscript/one_guest_virt64.xscript
@@ -192,6 +756,28 @@ index 262a96e3..c942ee14 100644
  
  # Create guest0
  guest create guest0
+diff --git a/tests/riscv/virt64/xscript/two_guest_virt64.xscript b/tests/riscv/virt64/xscript/two_guest_virt64.xscript
+index e3d69620..7cde7809 100644
+--- a/tests/riscv/virt64/xscript/two_guest_virt64.xscript
++++ b/tests/riscv/virt64/xscript/two_guest_virt64.xscript
+@@ -2,7 +2,7 @@
+ shmem create default 0x1000000 21
+ 
+ # Load guest0 device tree from file
+-vfs guest_fdt_load guest0 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x10000000 net0,switch,string,br0 shmem0,shared_mem,string,default
++vfs guest_fdt_load guest0 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x80000000 net0,switch,string,br0 shmem0,shared_mem,string,default
+ 
+ # Create guest0
+ guest create guest0
+@@ -11,7 +11,7 @@ guest create guest0
+ vfs guest_load_list guest0 /images/riscv/virt64/nor_flash.list
+ 
+ # Load guest1 device tree from file
+-vfs guest_fdt_load guest1 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x10000000 net0,switch,string,br0 shmem0,shared_mem,string,default
++vfs guest_fdt_load guest1 /images/riscv/virt64-guest.dtb 2 mem0,physical_size,physsize,0x80000000 net0,switch,string,br0 shmem0,shared_mem,string,default
+ 
+ # Create guest1
+ guest create guest1
 diff --git a/tools/scripts/d2c.py b/tools/scripts/d2c.py
 index b46a7bc4..0a6bce08 100755
 --- a/tools/scripts/d2c.py
@@ -202,5 +788,3 @@ index b46a7bc4..0a6bce08 100755
  #/**
  # Copyright (c) 2013 Anup Patel.
  # All rights reserved.
- 
-

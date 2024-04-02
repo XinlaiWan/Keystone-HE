@@ -12,29 +12,19 @@ index 7667392..eab78be 100644
  set(patchdir ${CMAKE_SOURCE_DIR}/overlays/keystone/patches)
  set(cross_compile riscv${BITS}-buildroot-linux-gnu-)
 diff --git a/mkutils/plat/generic/run.mk b/mkutils/plat/generic/run.mk
-index 32f1523..fd9df2d 100644
+index 32f1523..8ceaf6a 100644
 --- a/mkutils/plat/generic/run.mk
 +++ b/mkutils/plat/generic/run.mk
-@@ -6,17 +6,30 @@ QEMU_PORT       ?= 9821
+@@ -6,17 +6,33 @@ QEMU_PORT       ?= 9821
  QEMU_DBG_PORT   ?= $(shell echo $$(( $(QEMU_PORT) + 1)) )
  QEMU_DEBUG      := -gdb tcp::$(QEMU_DBG_PORT) -S
  
 -QEMU_MEM        ?= 2G
+-QEMU_SMP        ?= 4
 +QEMU_MEM        ?= 6G
- QEMU_SMP        ?= 4
++QEMU_SMP        ?= 1
  
 +export XVISOR   ?= $(KEYSTONE)/../xvisor
-+
-+# QEMU_FLAGS := -m $(QEMU_MEM) -smp $(QEMU_SMP) -nographic \
-+#                 -machine virt,rom=$(BUILDROOT_BUILDDIR)/images/bootrom.bin \
-+#                 -bios $(BUILDROOT_BUILDDIR)/images/fw_jump.elf \
-+#                 -kernel $(BUILDROOT_BUILDDIR)/images/Image \
-+#                 -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs.ext2,format=raw,id=hd0 \
-+#                 -device virtio-blk-device,drive=hd0 \
-+#                 -append "console=ttyS0 ro root=/dev/vda" \
-+#                 -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
-+#                 -device virtio-net-device,netdev=net0 \
-+#                 -device virtio-rng-pci \
  
  QEMU_FLAGS := -m $(QEMU_MEM) -smp $(QEMU_SMP) -nographic \
                  -machine virt,rom=$(BUILDROOT_BUILDDIR)/images/bootrom.bin \
@@ -46,19 +36,36 @@ index 32f1523..fd9df2d 100644
                  -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs.ext2,format=raw,id=hd0 \
                  -device virtio-blk-device,drive=hd0 \
 -                -append "console=ttyS0 ro root=/dev/vda" \
++                -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
++                -device virtio-net-device,netdev=net0 \
++                -device virtio-rng-pci \
++
++QEMU_FLAGS_TWO_GUESTS := -m $(QEMU_MEM) -smp $(QEMU_SMP) -nographic \
++                -machine virt,rom=$(BUILDROOT_BUILDDIR)/images/bootrom.bin \
++                -bios $(BUILDROOT_BUILDDIR)/images/fw_jump.elf \
++                -kernel $(XVISOR)/build/vmm.bin \
++                -initrd $(XVISOR)/build/disk.img \
++                -append 'vmm.bootcmd="vfs mount initrd /;vfs run /boot.xscript;vfs cat /system/banner.txt"' \
++                -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs.ext2,format=raw,id=hd0 \
++                -device virtio-blk-device,drive=hd0 \
++                -drive file=$(BUILDROOT_BUILDDIR)/images/rootfs_copy.ext2,format=raw,id=hd1 \
++                -device virtio-blk-device,drive=hd1 \
                  -netdev user,id=net0,net=192.168.100.1/24,dhcpstart=192.168.100.128,hostfwd=tcp::9821-:22 \
                  -device virtio-net-device,netdev=net0 \
                  -device virtio-rng-pci \
 diff --git a/overlays/keystone/configs/linux64-defconfig b/overlays/keystone/configs/linux64-defconfig
-index f6e0086..080aa79 100644
+index f6e0086..d51fdcb 100644
 --- a/overlays/keystone/configs/linux64-defconfig
 +++ b/overlays/keystone/configs/linux64-defconfig
-@@ -125,3 +125,5 @@ CONFIG_DEBUG_PLIST=y
+@@ -125,3 +125,8 @@ CONFIG_DEBUG_PLIST=y
  CONFIG_DEBUG_SG=y
  # CONFIG_RCU_TRACE is not set
  CONFIG_RCU_EQS_DEBUG=y
 +CONFIG_GDB_SCRIPTS=y
 +CONFIG_DEBUG_INFO_DWARF4=y
++CONFIG_DEBUG_KERNEL=y
++CONFIG_DEBUG_DRIVER=y
++CONFIG_FRAME_POINTER=y
 diff --git a/overlays/keystone/configs/qemu_riscv64_virt_defconfig b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
 index 1d348ab..42b097e 100644
 --- a/overlays/keystone/configs/qemu_riscv64_virt_defconfig

@@ -84,3 +84,48 @@ After that, run:
 ```
 
 - When the Linux booting has been started, follow the rest of [1.2.1.4.1. Launching Keystone in QEMU](https://docs.keystone-enclave.org/en/latest/Getting-Started/QEMU-Run-Tests.html) in the Keystone documentation to run the test enclaves.
+
+## Boot two Xvisor guests
+
+- Device trees used in Xvisor:
+  - Replace `virt64-guest.dts` and `virt64.dts` with `virt64-guest_two_guests.dts` and `virt64_two_guests.dts`.
+  - Do not modify the DTB name in the disk.
+
+- Run Keystone:
+  - Use `QEMU_FLAGS_TWO_GUESTS` instead of `QEMU_FLAGS` in `keystone/mkutils/plat/generic/run.mk`
+
+- In Xvisor:
+
+```
+> vdisk attach guest0/virtio-blk0 vda
+> vdisk attach guest1/virtio-blk1 vdb
+> guest kick guest0
+> guest kick guest1
+```
+
+- Bind terminal:
+
+```
+vserial bind guest0/uart0
+```
+or
+```
+vserial bind guest1/uart0
+```
+and switch between them by Esc-x-q
+
+- Linux boot
+
+For guest0:
+```
+> linux_memory_size 0x80000000
+> linux_cmdline root=/dev/vda ro console=ttyS0 nokaslr
+> autoexec
+```
+
+For guest1:
+```
+> linux_memory_size 0x80000000
+> linux_cmdline root=/dev/vdb ro console=ttyS0 nokaslr
+> autoexec
+```
