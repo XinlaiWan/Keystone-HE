@@ -1,0 +1,52 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..ba077a4
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++bin
+diff --git a/Makefile b/Makefile
+index 6f163d0..5f90462 100644
+--- a/Makefile
++++ b/Makefile
+@@ -6,7 +6,7 @@ CFLAGS = -fPIE -g
+ LDFLAGS = -static
+ 
+ RV32 = riscv32-linux-musl-
+-RV64 = riscv64-linux-musl-
++RV64 = $(RVTOOLS)/riscv64-buildroot-linux-gnu-
+ I386 = i386-linux-musl-
+ X86_64 = x86_64-linux-musl-
+ ARM32 = arm-linux-musleabihf-
+diff --git a/run_rv8-bench.sh b/run_rv8-bench.sh
+index 1d5c579..4a8ca9a 100755
+--- a/run_rv8-bench.sh
++++ b/run_rv8-bench.sh
+@@ -15,12 +15,14 @@ for tst in riscv64/*; do
+         BASE_LOG_FILE=${TEST_LOG_DIR}/base_${tst}_${RUN_N}.log
+         KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_${tst}_${RUN_N}.log
+ 
++        echo "Base $RUN_N" 
+         if [[ $RUN_BASELINE == 1 ]]; then
+             { time ./riscv64/${tst}; } &> ${BASE_LOG_FILE}
+         fi
+ 
++        echo "Keystone $RUN_N"
+         if [[ $RUN_KEYSTONE == 1 ]]; then
+-            { time ${TEST_RUNNER} ./riscv64/${tst} ${EYRIE_FULL_SUPPORT} --utm-size ${DEFAULT_USZ} --freemem-size ${XLARGE_FSZ} --time ; } &> ${KEYSTONE_LOG_FILE}
++            { time ${TEST_RUNNER} ./riscv64/${tst} ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size ${DEFAULT_USZ} --freemem-size ${XLARGE_FSZ} --time ; } &> ${KEYSTONE_LOG_FILE}
+         fi
+     done
+ done
+diff --git a/src/bigint.cc b/src/bigint.cc
+index c6defac..6f5d711 100644
+--- a/src/bigint.cc
++++ b/src/bigint.cc
+@@ -25,6 +25,7 @@
+  */
+ 
+ #include <cstdio>
++#include <cstdint>
+ #include <cstdlib>
+ #include <cstddef>
+ #include <cassert>

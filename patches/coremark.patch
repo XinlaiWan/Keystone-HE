@@ -1,0 +1,26 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..60ba634
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1 @@
++coremark.exe
+diff --git a/run_coremark.sh b/run_coremark.sh
+index ef40352..654fb87 100755
+--- a/run_coremark.sh
++++ b/run_coremark.sh
+@@ -9,10 +9,13 @@ for RUN_N in $(seq $REPS); do
+     BASE_LOG_FILE=${TEST_LOG_DIR}/base_coremark_${RUN_N}.log
+     KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_coremark_${RUN_N}.log
+ 
++    echo "Base $RUN_N" 
+     if [[ $RUN_BASELINE == 1 ]]; then
+         ./coremark.exe > ${BASE_LOG_FILE} 2> ${BASE_LOG_FILE}.err
+     fi
++
++    echo "Keystone $RUN_N"
+     if [[ $RUN_KEYSTONE == 1 ]]; then
+-        ${TEST_RUNNER} coremark.exe ${EYRIE_FULL_SUPPORT} --utm-size 2048 --freemem-size 49152 > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
++        ${TEST_RUNNER} coremark.exe ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size 2048 --freemem-size 49152 > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
+     fi
+ done

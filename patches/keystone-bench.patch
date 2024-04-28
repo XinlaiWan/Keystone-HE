@@ -1,0 +1,362 @@
+diff --git a/.gitignore b/.gitignore
+index 95b9b04..a519f44 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -1,4 +1,6 @@
+ *~
+ *.riscv
+ *.o
+-staging/
+\ No newline at end of file
++staging/
++eyrie-rt
++loader.bin
+diff --git a/Makefile b/Makefile
+index 4f10f99..fdd4a34 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,19 +1,37 @@
+-.PHONY: all bench-runner coremark rv8-bench eyrie-rt
++MAKE_PATH := $(abspath $(lastword $(MAKEFILE_LIST)))
++PWD := $(dir $(MAKE_PATH))
+ 
+-all: bench-runner coremark rv8-bench eyrie-rt
++.PHONY: all bench-runner coremark rv8-bench iozone beebs
++
++all: bench-runner coremark rv8-bench iozone beebs
+ 	rm -rf staging
+ 	./copy_all_tests.sh
+ 
+ coremark:
+-	make -C ./coremark/ CC=riscv64-unknown-linux-gnu-gcc PORT_DIR=rv64 compile
++	make -C ./coremark/ CC=$(RVTOOLS)/riscv64-buildroot-linux-gnu-gcc PORT_DIR=rv64 compile
++
++beebs:
++	cd $(PWD)/beebs && \
++	CC=$(RVTOOLS)/riscv64-buildroot-linux-gnu-gcc ./configure --host=riscv64 --prefix=$(PWD)/beebs/test_overlay && \
++	make && make install
++
++iozone:
++	make -C ./iozone/ CCRV=$(RVTOOLS)/riscv64-buildroot-linux-gnu-cc riscv
++
+ rv8-bench:
+ 	make -C ./rv8-bench/
++
+ bench-runner:
+ 	make -C ./bench-runner/
+-eyrie-rt:
+-	${KEYSTONE_DIR}/sdk/rts/eyrie/build.sh freemem untrusted_io_syscall env_setup linux_syscall
+-clean:
++
++clean: .IGNORE
+ 	make -C ./rv8-bench clean
+ 	make -C ./coremark clean
++	make -C ./iozone clean
+ 	make -C ./bench-runner clean
+ 	rm -r staging
++	rm -r $(PWD)/beebs/test_overlay
++
++.IGNORE:
++	make -C ./beebs clean
++	make -C ./beebs distclean
+diff --git a/README.md b/README.md
+index d5000e1..c66b69b 100644
+--- a/README.md
++++ b/README.md
+@@ -12,3 +12,24 @@ and inserting the module.
+ 
+ You will need to copy the logs directory out when done, it will not
+ persist by default in our images.
++
++-------------------------------------------------------------------
++Xinlai hacking version
++
++Note: we refer to `<hypervisor-extended-keystone-folder>/keystone/build-generic64/buildroot.build` as `<keystone-buildroot-build-folder>`.
++
++After building Hypervisor-Extended Keystone, do:
++`cp <keystone-buildroot-build-folder>/build/<keystone-examples-folder>/hello/{eyrie-rt,loader.bin} .` 
++
++Then, `KEYSTONE_DIR=<hypervisor-extended-keystone-folder>/keystone RVTOOLS=<keystone-buildroot-build-folder>/host/bin make`.
++
++Then, do:
++
++```
++> sudo qemu-nbd -f raw --connect=/dev/nbd0 <keystone-buildroot-build-folder>/images/rootfs.ext2
++> lsblk
++> mkdir tmp; sudo mount /dev/nbd0 tmp
++> sudo cp -r staging/ ./tmp/usr/share/keystone/
++> sudo umount tmp; rm -rf tmp
++> sudo qemu-nbd --disconnect /dev/nbd0
++```
+diff --git a/bench-runner/Makefile b/bench-runner/Makefile
+index 342a5ca..ad20fc7 100644
+--- a/bench-runner/Makefile
++++ b/bench-runner/Makefile
+@@ -1,18 +1,15 @@
+-CC = riscv64-unknown-linux-gnu-g++
+-OBJCOPY = riscv64-unknown-linux-gnu-objcopy
++CC = $(RVTOOLS)/riscv64-buildroot-linux-gnu-g++
++OBJCOPY = $(RVTOOLS)/riscv64-buildroot-linux-gnu-objcopy
+ 
+-SDK_LIB_DIR =$(KEYSTONE_DIR)/sdk/lib
++SDK_LIB_DIR =$(KEYSTONE_DIR)/build-generic64/buildroot.build/host/share/keystone/sdk/lib
+ SDK_HOST_LIB = $(SDK_LIB_DIR)/libkeystone-host.a
+ SDK_EDGE_LIB = $(SDK_LIB_DIR)/libkeystone-edge.a
+ SDK_VERIFIER_LIB = $(SDK_LIB_DIR)/libkeystone-verifier.a
+ 
+-SDK_INCLUDE_HOST_DIR = $(SDK_LIB_DIR)/host/include
+-SDK_INCLUDE_EDGE_DIR = $(SDK_LIB_DIR)/edge/include
+-SDK_INCLUDE_VERIFIER_DIR = $(SDK_LIB_DIR)/verifier
+-
++SDK_INCLUDE_DIR = $(KEYSTONE_DIR)/sdk/include
+ 
+ RUNNER=bench-runner.riscv
+-CCFLAGS = -I$(SDK_INCLUDE_HOST_DIR) -I$(SDK_INCLUDE_EDGE_DIR) -I$(SDK_INCLUDE_VERIFIER_DIR) -std=c++11
++CCFLAGS = -I$(SDK_INCLUDE_DIR) -std=c++11
+ LDFLAGS = -L$(SDK_LIB_DIR)
+ 
+ SRCS = $(patsubst %.riscv, %.cpp, $(RUNNER))
+@@ -21,9 +18,6 @@ OBJS = $(patsubst %.riscv, %.o,$(RUNNER)) $(KEYSTONE_OBJ)
+ all:  $(OBJS) $(SDK_HOST_LIB) $(SDK_EDGE_LIB) $(SDK_VERIFIER_LIB)
+ 	$(CC) $(CCFLAGS) $(LDFLAGS) -o $(RUNNER) $^
+ 
+-$(SDK_HOST_LIB):
+-	$(MAKE) -C $(SDK_HOST_DIR)
+-
+ $(OBJS): %.o: %.cpp
+ 	$(CC) $(CCFLAGS) -c $<
+ 
+diff --git a/bench-runner/bench-runner.cpp b/bench-runner/bench-runner.cpp
+index 8b52861..cf5b0eb 100644
+--- a/bench-runner/bench-runner.cpp
++++ b/bench-runner/bench-runner.cpp
+@@ -4,35 +4,28 @@
+ //------------------------------------------------------------------------------
+ #include <iostream>
+ #include <cstdio>
+-#include "keystone.h"
+-#include "edge_call.h"
++#include <host/keystone.h>
++#include <edge/edge_call.h>
+ #include <getopt.h>
+ 
+-/* This is for asking the loader to use the FU540 physical address
+-range belonging to the scratchpad, rather than what the kernel
+-provides. This will only work with the appropriate SM plugins enabled
+-and working! (FU540 platform module set to use the scratchpad, SM
+-multimem plugin)
+-*/
+-#define SCRATCHPAD_PHYS 0
+-
+ int main(int argc, char** argv)
+ {
+-  if(argc < 3 || argc > 8)
+-  {
+-    printf("Usage: %s <eapp> <runtime> [--utm-size SIZE(K)] [--freemem-size SIZE(K)] [--time] [--load-only] [--utm-ptr 0xPTR]\n", argv[0]);
++  if (argc < 4 || argc > 9) {
++    printf(
++        "Usage: %s <eapp> <runtime> [--utm-size SIZE(K)] [--freemem-size "
++        "SIZE(K)] [--time] [--load-only] [--utm-ptr 0xPTR] [--retval EXPECTED]\n",
++        argv[0]);
+     return 0;
+   }
+ 
+-
+   int self_timing = 0;
+   int load_only = 0;
+ 
+   size_t untrusted_size = 1024*1024;
+   size_t freemem_size = 20482*1024;
+   uintptr_t utm_ptr = (uintptr_t)DEFAULT_UNTRUSTED_PTR;
+-
+-
++  bool retval_exist = false;
++  unsigned long retval = 0;
+ 
+   static struct option long_options[] =
+     {
+@@ -41,12 +34,13 @@ int main(int argc, char** argv)
+       {"utm-size",     required_argument, 0, 'u'},
+       {"utm-ptr",      required_argument, 0, 'p'},
+       {"freemem-size", required_argument, 0, 'f'},
++      {"retval", required_argument, 0, 'r'},
+       {0, 0, 0, 0}
+     };
+ 
+-
+   char* eapp_file = argv[1];
+   char* rt_file = argv[2];
++  char* ld_file   = argv[3];
+ 
+   int c;
+   int opt_index = 3;
+@@ -70,11 +64,15 @@ int main(int argc, char** argv)
+     case 'f':
+       freemem_size = atoi(optarg)*1024;
+       break;
++    case 'r':
++      retval_exist = true;
++      retval = atoi(optarg);
++      break;
+     }
+   }
+ 
+-  Keystone enclave;
+-  Params params;
++  Keystone::Enclave enclave;
++  Keystone::Params params;
+   unsigned long cycles1,cycles2,cycles3,cycles4;
+ 
+   params.setFreeMemSize(freemem_size);
+@@ -84,10 +82,8 @@ int main(int argc, char** argv)
+   if( self_timing ){
+     asm volatile ("rdcycle %0" : "=r" (cycles1));
+   }
+-  if(SCRATCHPAD_PHYS)
+-    enclave.init(eapp_file, rt_file , params, 0x0A000000);
+-  else
+-    enclave.init(eapp_file, rt_file , params);
++
++  enclave.init(eapp_file, rt_file, ld_file, params);
+ 
+   if( self_timing ){
+     asm volatile ("rdcycle %0" : "=r" (cycles2));
+@@ -97,19 +93,21 @@ int main(int argc, char** argv)
+   edge_call_init_internals((uintptr_t)enclave.getSharedBuffer(),
+ 			   enclave.getSharedBufferSize());
+ 
+-
+   printf("[keystone-bench] Params:\n\tuntrusted: %lu\n\tfreemem: %lu\n\t%s\n\t%s\n\t%s\n*********\n",untrusted_size,freemem_size,
+          self_timing?"Performing internal timing":"No timing",
+-         load_only?"ONLY LOADING, not running":"Running benchmark",
+-         SCRATCHPAD_PHYS?"Loading to SCRATCHPAD":"");
+-
++         load_only?"ONLY LOADING, not running":"Running benchmark");
+ 
+   if( self_timing ){
+     asm volatile ("rdcycle %0" : "=r" (cycles3));
+   }
+ 
++  unsigned long encl_ret;
+   if( !load_only )
+-    enclave.run();
++    enclave.run(&encl_ret);
++
++  if (retval_exist && encl_ret != retval) {
++    printf("[FAIL] enclave returned a wrong value (%d != %d)\r\n", encl_ret, retval);
++  }
+ 
+   if( self_timing ){
+     asm volatile ("rdcycle %0" : "=r" (cycles4));
+diff --git a/copy_all_tests.sh b/copy_all_tests.sh
+index c542dcc..5223a73 100755
+--- a/copy_all_tests.sh
++++ b/copy_all_tests.sh
+@@ -2,8 +2,9 @@
+ 
+ set -e
+ 
+-KEYSTONE_BINS_DIR=${KEYSTONE_DIR}/sdk/rts/eyrie/
+-
++# copy eyrie-rt and loader.bin out before running this script
++# In ${KEYSTONE_DIR}, do:
++# cp ${path_of_built_keystone-examples/tests}/{eyrie-rt,loader.bin} $(pwd)
+ source test_config.sh
+ 
+ export TEST_CONFIG=$(pwd)/test_config.sh
+@@ -24,10 +25,10 @@ cp run_all_tests.sh ${STAGING_OUTPUT_DIR}
+ 
+ cp test_config.sh ${STAGING_OUTPUT_DIR}
+ 
+-KEYSTONE_BINS=" ${EYRIE_FULL_SUPPORT_NAME}"
++KEYSTONE_BINS=" ${EYRIE_FULL_SUPPORT_NAME} ${EYRIE_LOADER_NAME}"
+ 
+ for bin in $KEYSTONE_BINS; do
+-    cp ${KEYSTONE_BINS_DIR}/${bin} ${STAGING_OUTPUT_DIR}
++    cp $(pwd)/${bin} ${STAGING_OUTPUT_DIR}
+ done
+ 
+ cp bench-runner/bench-runner.riscv ${STAGING_OUTPUT_DIR}
+diff --git a/process_all_tests.sh b/process_all_tests.sh
+index 5f25832..3a51719 100755
+--- a/process_all_tests.sh
++++ b/process_all_tests.sh
+@@ -6,6 +6,7 @@ export TEST_CONFIG=$(pwd)/test_config.sh
+ LOG_DIR=$(pwd)/${LOG_DIR_NAME}
+ TEST_RUNNER=$(pwd)/${TEST_RUNNER_NAME}
+ EYRIE_FULL_SUPPORT=$(pwd)/${EYRIE_FULL_SUPPORT_NAME}
++EYRIE_LOADER=$(pwd)/${EYRIE_LOADER_NAME}
+ 
+ for testf in $TEST_FRAMEWORKS; do
+     cd $testf
+diff --git a/run_all_tests.sh b/run_all_tests.sh
+index 5127369..cdd34e5 100755
+--- a/run_all_tests.sh
++++ b/run_all_tests.sh
+@@ -5,10 +5,12 @@ source test_config.sh
+ LOG_DIR=$(pwd)/${LOG_DIR_NAME}
+ TEST_RUNNER=$(pwd)/${TEST_RUNNER_NAME}
+ EYRIE_FULL_SUPPORT=$(pwd)/${EYRIE_FULL_SUPPORT_NAME}
++EYRIE_LOADER=$(pwd)/${EYRIE_LOADER_NAME}
+ 
+ export TEST_CONFIG=$(pwd)/test_config.sh
+ export TEST_RUNNER
+ export EYRIE_FULL_SUPPORT
++export EYRIE_LOADER
+ 
+ mkdir $LOG_DIR
+ 
+@@ -17,6 +19,11 @@ md5sum ${EYRIE_FULL_SUPPORT} >> ${LOG_DIR}/CONFIG
+ 
+ echo "" >> ${LOG_DIR}/CONFIG
+ 
++echo "Eyrie Loader: " > ${LOG_DIR}/CONFIG
++md5sum ${EYRIE_LOADER} >> ${LOG_DIR}/CONFIG
++
++echo "" >> ${LOG_DIR}/CONFIG
++
+ echo "Test runner: " >> ${LOG_DIR}/CONFIG
+ md5sum ${TEST_RUNNER} >> ${LOG_DIR}/CONFIG
+ 
+diff --git a/sodium/run_sodium.sh b/sodium/run_sodium.sh
+index a33cbdc..589a2f9 100755
+--- a/sodium/run_sodium.sh
++++ b/sodium/run_sodium.sh
+@@ -13,6 +13,6 @@ for RUN_N in $(seq $REPS); do
+         ./coremark.exe > ${BASE_LOG_FILE} 2> ${BASE_LOG_FILE}.err
+     fi
+     if [[ $RUN_KEYSTONE == 1 ]]; then
+-        ${TEST_RUNNER} coremark.exe ${EYRIE_FULL_SUPPORT} 2048 49152 0 0 > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
++        ${TEST_RUNNER} coremark.exe ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} 2048 49152 0 0 > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
+     fi
+ done
+diff --git a/test_config.sh b/test_config.sh
+index cb540e9..176dd27 100644
+--- a/test_config.sh
++++ b/test_config.sh
+@@ -1,6 +1,5 @@
+ # Test directory names
+-TEST_FRAMEWORKS="rv8-bench coremark"
+-#torch beebs iozone"
++TEST_FRAMEWORKS="rv8-bench coremark iozone beebs"
+ 
+ # Which things to run
+ RUN_KEYSTONE=1
+@@ -29,3 +28,4 @@ XLARGE_FSZ=262144
+ 
+ # Various eyrie configs
+ EYRIE_FULL_SUPPORT_NAME=eyrie-rt
++EYRIE_LOADER_NAME=loader.bin
+diff --git a/torch/run_torch.sh b/torch/run_torch.sh
+index 0ceb6bc..1ac601a 100755
+--- a/torch/run_torch.sh
++++ b/torch/run_torch.sh
+@@ -20,7 +20,7 @@ for tst in ${TORCH_TESTS}; do
+             { time ./${tst}; } &> ${BASE_LOG_FILE}
+         fi
+         if [[ $RUN_KEYSTONE == 1 ]]; then
+-            { time ${TEST_RUNNER} ${tst} ${EYRIE_FULL_SUPPORT} ${DEFAULT_USZ} ${TORCH_SIZES[$var]} 1 0; } &> ${KEYSTONE_LOG_FILE}
++            { time ${TEST_RUNNER} ${tst} ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} ${DEFAULT_USZ} ${TORCH_SIZES[$var]} 1 0; } &> ${KEYSTONE_LOG_FILE}
+         fi
+     done
+     ((var++))

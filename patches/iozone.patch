@@ -1,0 +1,88 @@
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+index 0000000..c0a80d6
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,2 @@
++*.o
++iozone
+diff --git a/iozone.c b/iozone.c
+index f7da701..8e96ad5 100644
+--- a/iozone.c
++++ b/iozone.c
+@@ -1672,7 +1672,7 @@ int client_error;
+ 
+ char pit_hostname[40];
+ char pit_service[8];
+-int junk;
++static int junk;
+ 
+ /*
+  * Host ports used to listen, and handle errors.
+@@ -1838,6 +1838,9 @@ void new_touch_dedup(char *, int);
+ /*								*/
+ /****************************************************************/
+ 
++# include <time.h>
++int real_main(int argc, char** argv);
++
+ int main(){
+ 
+   char* argvec[7] = { "iozone","-a","-b","results.xls","-+s","-q1M","1024"};
+diff --git a/libbif.c b/libbif.c
+index b2b9668..8e72e63 100644
+--- a/libbif.c
++++ b/libbif.c
+@@ -55,7 +55,7 @@
+ /* Middle Endian */
+ #define ENDIAN_4  4
+ 
+-int junk, *junkp;
++static int junk, *junkp;
+ 
+ 
+ #ifdef HAVE_ANSIC_C
+diff --git a/makefile b/makefile
+index 518674c..630eec0 100644
+--- a/makefile
++++ b/makefile
+@@ -159,8 +159,8 @@ generic:	iozone_generic.o  libbif.o
+ #
+ # Riscv_Musl build with no threads, no largefiles, no async I/O
+ #
+-riscv_musl:	iozone_riscv_musl.o  libbif.o
+-	$(CCRV)  -O $(LDFLAGS) -static iozone_riscv_musl.o libbif.o -o iozone
++riscv:	iozone_riscv.o  libbif.o
++	$(CCRV)  -O $(LDFLAGS) iozone_riscv.o libbif.o -o iozone
+ 
+ #
+ # No ansii 'C' compiler HP build with no threads, no largefiles, no async I/O
+@@ -789,12 +789,12 @@ iozone_generic.o:	iozone.c libbif.c
+ 	$(CC) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
+ 		$(CFLAGS) libbif.c -o libbif.o
+ 
+-iozone_riscv_musl.o:	iozone.c libbif.c
++iozone_riscv.o:	iozone.c libbif.c
+ 	@echo ""
+-	@echo "Building iozone RISC-V + musl-libc (Generic) "
++	@echo "Building iozone RISC-V (Generic) "
+ 	@echo ""
+ 	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
+-		-DNAME='"RISC-V_musl"' $(CFLAGS) iozone.c -o iozone_riscv_musl.o
++		-DNAME='"RISC-V"' $(CFLAGS) iozone.c -o iozone_riscv.o
+ 	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
+ 		$(CFLAGS) libbif.c -o libbif.o
+ 
+diff --git a/run_iozone.sh b/run_iozone.sh
+index 4f03115..d145a75 100755
+--- a/run_iozone.sh
++++ b/run_iozone.sh
+@@ -18,7 +18,7 @@ for RUN_N in $(seq $SHORT_REPS); do
+     fi
+ 
+     if [[ $RUN_KEYSTONE == 1 ]]; then
+-        ${TEST_RUNNER} iozone ${EYRIE_FULL_SUPPORT} --utm-size ${DEFAULT_USZ} --freemem-size ${LARGE_FSZ} > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
++        ${TEST_RUNNER} iozone ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size ${DEFAULT_USZ} --freemem-size ${LARGE_FSZ} > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
+         mv results.xls ${KEYSTONE_LOG_FILE}.xls
+     fi
+ done

@@ -4,3 +4,6 @@
 [submodule "xvisor"]
 	path = xvisor
 	url = https://github.com/xvisor/xvisor.git
+[submodule "keystone-bench"]
+	path = keystone-bench
+	url = https://github.com/keystone-enclave/keystone-bench.git
