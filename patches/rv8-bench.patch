@@ -19,14 +19,14 @@ index 6f163d0..5f90462 100644
  X86_64 = x86_64-linux-musl-
  ARM32 = arm-linux-musleabihf-
 diff --git a/run_rv8-bench.sh b/run_rv8-bench.sh
-index 1d5c579..4a8ca9a 100755
+index 1d5c579..ea5cf26 100755
 --- a/run_rv8-bench.sh
 +++ b/run_rv8-bench.sh
 @@ -15,12 +15,14 @@ for tst in riscv64/*; do
          BASE_LOG_FILE=${TEST_LOG_DIR}/base_${tst}_${RUN_N}.log
          KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_${tst}_${RUN_N}.log
  
-+        echo "Base $RUN_N" 
++        echo "Base $RUN_N"
          if [[ $RUN_BASELINE == 1 ]]; then
              { time ./riscv64/${tst}; } &> ${BASE_LOG_FILE}
          fi
@@ -38,15 +38,3 @@ index 1d5c579..4a8ca9a 100755
          fi
      done
  done
-diff --git a/src/bigint.cc b/src/bigint.cc
-index c6defac..6f5d711 100644
---- a/src/bigint.cc
-+++ b/src/bigint.cc
-@@ -25,6 +25,7 @@
-  */
- 
- #include <cstdio>
-+#include <cstdint>
- #include <cstdlib>
- #include <cstddef>
- #include <cassert>

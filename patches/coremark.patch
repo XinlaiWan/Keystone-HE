@@ -6,14 +6,14 @@ index 0000000..60ba634
 @@ -0,0 +1 @@
 +coremark.exe
 diff --git a/run_coremark.sh b/run_coremark.sh
-index ef40352..654fb87 100755
+index ef40352..5895689 100755
 --- a/run_coremark.sh
 +++ b/run_coremark.sh
 @@ -9,10 +9,13 @@ for RUN_N in $(seq $REPS); do
      BASE_LOG_FILE=${TEST_LOG_DIR}/base_coremark_${RUN_N}.log
      KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_coremark_${RUN_N}.log
  
-+    echo "Base $RUN_N" 
++    echo "Base $RUN_N"
      if [[ $RUN_BASELINE == 1 ]]; then
          ./coremark.exe > ${BASE_LOG_FILE} 2> ${BASE_LOG_FILE}.err
      fi

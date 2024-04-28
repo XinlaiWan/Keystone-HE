@@ -12,7 +12,7 @@ index 95b9b04..a519f44 100644
 +eyrie-rt
 +loader.bin
 diff --git a/Makefile b/Makefile
-index 4f10f99..fdd4a34 100644
+index 4f10f99..e8e9fdb 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,19 +1,37 @@
@@ -33,7 +33,7 @@ index 4f10f99..fdd4a34 100644
 +
 +beebs:
 +	cd $(PWD)/beebs && \
-+	CC=$(RVTOOLS)/riscv64-buildroot-linux-gnu-gcc ./configure --host=riscv64 --prefix=$(PWD)/beebs/test_overlay && \
++	CC=$(RVTOOLS)/riscv64-buildroot-linux-gnu-gcc CFLAGS="-std=gnu99 -g" ./configure --host=riscv64 --prefix=$(PWD)/beebs/test_overlay && \
 +	make && make install
 +
 +iozone:

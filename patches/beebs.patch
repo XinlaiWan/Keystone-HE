@@ -20,15 +20,22 @@ index 9752e737..cf2eab43 100644
  unsigned long cycles1;
  
 diff --git a/run_beebs.sh b/run_beebs.sh
-index f5a051ca..c3c567a7 100755
+index f5a051ca..2cc1134a 100755
 --- a/run_beebs.sh
 +++ b/run_beebs.sh
-@@ -18,7 +18,7 @@ for tst in bin/*; do
+@@ -14,11 +14,14 @@ for tst in bin/*; do
+         BASE_LOG_FILE=${TEST_LOG_DIR}/base_${tst}_${RUN_N}.log
+         KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_${tst}_${RUN_N}.log
+ 
++        echo "Base $RUN_N"
+         if [[ $RUN_BASELINE == 1 ]]; then
              ./bin/${tst} > ${BASE_LOG_FILE} 2> ${BASE_LOG_FILE}.err
          fi
++
++        echo "Keystone $RUN_N"
          if [[ $RUN_KEYSTONE == 1 ]]; then
 -            ${TEST_RUNNER} ./bin/${tst} ${EYRIE_FULL_SUPPORT} --utm-size ${DEFAULT_USZ} --freemem-size ${DEFAULT_FSZ} ; } &> ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
-+            ${TEST_RUNNER} ./bin/${tst} ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size ${DEFAULT_USZ} --freemem-size ${DEFAULT_FSZ} ; } &> ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
++            ${TEST_RUNNER} ./bin/${tst} ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size ${DEFAULT_USZ} --freemem-size ${DEFAULT_FSZ} &> ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
          fi
      done
  done

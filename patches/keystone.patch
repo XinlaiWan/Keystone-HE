@@ -85,14 +85,15 @@ index f6e00861..d51fdcb3 100644
 +CONFIG_DEBUG_DRIVER=y
 +CONFIG_FRAME_POINTER=y
 diff --git a/overlays/keystone/configs/qemu_riscv64_virt_defconfig b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
-index 1d348abe..42b097eb 100644
+index 1d348abe..8040b01f 100644
 --- a/overlays/keystone/configs/qemu_riscv64_virt_defconfig
 +++ b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
-@@ -30,3 +30,4 @@ BR2_PACKAGE_KEYSTONE_DRIVER=y
+@@ -30,3 +30,5 @@ BR2_PACKAGE_KEYSTONE_DRIVER=y
  BR2_PACKAGE_HOST_KEYSTONE_SDK=y
  BR2_PACKAGE_KEYSTONE_RUNTIME=y
  BR2_PACKAGE_KEYSTONE_EXAMPLES=y
 +BR2_STRIP_strip=n
++BR2_TARGET_ROOTFS_EXT2_SIZE="8G"
 diff --git a/sm/src/enclave.c b/sm/src/enclave.c
 index dba749dc..0fff49f0 100644
 --- a/sm/src/enclave.c

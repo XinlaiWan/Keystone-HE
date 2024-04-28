@@ -43,21 +43,24 @@ index b2b9668..8e72e63 100644
  
  #ifdef HAVE_ANSIC_C
 diff --git a/makefile b/makefile
-index 518674c..630eec0 100644
+index 518674c..830d19f 100644
 --- a/makefile
 +++ b/makefile
-@@ -159,8 +159,8 @@ generic:	iozone_generic.o  libbif.o
+@@ -157,10 +157,10 @@ generic:	iozone_generic.o  libbif.o
+ 	$(CC)  -O $(LDFLAGS) iozone_generic.o libbif.o -o iozone
+ 
  #
- # Riscv_Musl build with no threads, no largefiles, no async I/O
+-# Riscv_Musl build with no threads, no largefiles, no async I/O
++# RISC-V build with no threads, no largefiles, no async I/O
  #
 -riscv_musl:	iozone_riscv_musl.o  libbif.o
 -	$(CCRV)  -O $(LDFLAGS) -static iozone_riscv_musl.o libbif.o -o iozone
 +riscv:	iozone_riscv.o  libbif.o
-+	$(CCRV)  -O $(LDFLAGS) iozone_riscv.o libbif.o -o iozone
++	$(CCRV) -g -O $(LDFLAGS) iozone_riscv.o libbif.o -o iozone
  
  #
  # No ansii 'C' compiler HP build with no threads, no largefiles, no async I/O
-@@ -789,12 +789,12 @@ iozone_generic.o:	iozone.c libbif.c
+@@ -789,13 +789,13 @@ iozone_generic.o:	iozone.c libbif.c
  	$(CC) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
  		$(CFLAGS) libbif.c -o libbif.o
  
@@ -67,19 +70,30 @@ index 518674c..630eec0 100644
 -	@echo "Building iozone RISC-V + musl-libc (Generic) "
 +	@echo "Building iozone RISC-V (Generic) "
  	@echo ""
- 	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
+-	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
 -		-DNAME='"RISC-V_musl"' $(CFLAGS) iozone.c -o iozone_riscv_musl.o
+-	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
++	$(CCRV) -g -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
 +		-DNAME='"RISC-V"' $(CFLAGS) iozone.c -o iozone_riscv.o
- 	$(CCRV) -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
++	$(CCRV) -g -c -O -Dgeneric -Dunix -DHAVE_ANSIC_C -DNO_THREADS \
  		$(CFLAGS) libbif.c -o libbif.o
  
+ 
 diff --git a/run_iozone.sh b/run_iozone.sh
-index 4f03115..d145a75 100755
+index 4f03115..32e2b96 100755
 --- a/run_iozone.sh
 +++ b/run_iozone.sh
-@@ -18,7 +18,7 @@ for RUN_N in $(seq $SHORT_REPS); do
+@@ -12,13 +12,15 @@ for RUN_N in $(seq $SHORT_REPS); do
+     BASE_LOG_FILE=${TEST_LOG_DIR}/base_iozone_${RUN_N}.log
+     KEYSTONE_LOG_FILE=${TEST_LOG_DIR}/keystone_iozone_${RUN_N}.log
+ 
++    echo "Base $RUN_N"
+     if [[ $RUN_BASELINE == 1 ]]; then
+         ./iozone > ${BASE_LOG_FILE} 2> ${BASE_LOG_FILE}.err
+         mv results.xls ${BASE_LOG_FILE}.xls
      fi
  
++    echo "Keystone $RUN_N"
      if [[ $RUN_KEYSTONE == 1 ]]; then
 -        ${TEST_RUNNER} iozone ${EYRIE_FULL_SUPPORT} --utm-size ${DEFAULT_USZ} --freemem-size ${LARGE_FSZ} > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
 +        ${TEST_RUNNER} iozone ${EYRIE_FULL_SUPPORT} ${EYRIE_LOADER} --utm-size ${DEFAULT_USZ} --freemem-size ${LARGE_FSZ} > ${KEYSTONE_LOG_FILE} 2> ${KEYSTONE_LOG_FILE}.err
