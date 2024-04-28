@@ -1,5 +1,17 @@
+diff --git a/.gitignore b/.gitignore
+index 0641574f..0f4363d4 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -2,6 +2,7 @@
+ *.swp
+ .venv/
+ build/
++build-generic64/
+ riscv/
+ riscv64/
+ riscv32/
 diff --git a/CMakeLists.txt b/CMakeLists.txt
-index 7667392..eab78be 100644
+index 7667392a..eab78beb 100644
 --- a/CMakeLists.txt
 +++ b/CMakeLists.txt
 @@ -34,7 +34,7 @@ else()
@@ -12,7 +24,7 @@ index 7667392..eab78be 100644
  set(patchdir ${CMAKE_SOURCE_DIR}/overlays/keystone/patches)
  set(cross_compile riscv${BITS}-buildroot-linux-gnu-)
 diff --git a/mkutils/plat/generic/run.mk b/mkutils/plat/generic/run.mk
-index 32f1523..ac5dc58 100644
+index 32f15236..d186117c 100644
 --- a/mkutils/plat/generic/run.mk
 +++ b/mkutils/plat/generic/run.mk
 @@ -6,23 +6,40 @@ QEMU_PORT       ?= 9821
@@ -20,7 +32,7 @@ index 32f1523..ac5dc58 100644
  QEMU_DEBUG      := -gdb tcp::$(QEMU_DBG_PORT) -S
  
 -QEMU_MEM        ?= 2G
-+QEMU_MEM        ?= 6G
++QEMU_MEM        ?= 8G
  QEMU_SMP        ?= 4
  
 +export XVISOR   ?= $(KEYSTONE)/../xvisor
@@ -60,7 +72,7 @@ index 32f1523..ac5dc58 100644
  
  run:
 diff --git a/overlays/keystone/configs/linux64-defconfig b/overlays/keystone/configs/linux64-defconfig
-index f6e0086..d51fdcb 100644
+index f6e00861..d51fdcb3 100644
 --- a/overlays/keystone/configs/linux64-defconfig
 +++ b/overlays/keystone/configs/linux64-defconfig
 @@ -125,3 +125,8 @@ CONFIG_DEBUG_PLIST=y
@@ -73,7 +85,7 @@ index f6e0086..d51fdcb 100644
 +CONFIG_DEBUG_DRIVER=y
 +CONFIG_FRAME_POINTER=y
 diff --git a/overlays/keystone/configs/qemu_riscv64_virt_defconfig b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
-index 1d348ab..42b097e 100644
+index 1d348abe..42b097eb 100644
 --- a/overlays/keystone/configs/qemu_riscv64_virt_defconfig
 +++ b/overlays/keystone/configs/qemu_riscv64_virt_defconfig
 @@ -30,3 +30,4 @@ BR2_PACKAGE_KEYSTONE_DRIVER=y
@@ -82,7 +94,7 @@ index 1d348ab..42b097e 100644
  BR2_PACKAGE_KEYSTONE_EXAMPLES=y
 +BR2_STRIP_strip=n
 diff --git a/sm/src/enclave.c b/sm/src/enclave.c
-index dba749d..0fff49f 100644
+index dba749dc..0fff49f0 100644
 --- a/sm/src/enclave.c
 +++ b/sm/src/enclave.c
 @@ -45,6 +45,7 @@ static inline void context_switch_to_enclave(struct sbi_trap_regs* regs,
@@ -112,7 +124,7 @@ index dba749d..0fff49f 100644
    switch_vector_host();
  
 diff --git a/sm/src/thread.c b/sm/src/thread.c
-index 2df9477..cd1af8c 100644
+index 2df94774..cd1af8c5 100644
 --- a/sm/src/thread.c
 +++ b/sm/src/thread.c
 @@ -21,12 +21,23 @@ void swap_prev_mstatus(struct thread_state* thread, struct sbi_trap_regs* regs,
@@ -148,7 +160,7 @@ index 2df9477..cd1af8c 100644
    clean_smode_csrs(state);
  }
 diff --git a/sm/src/thread.h b/sm/src/thread.h
-index ba6ea5a..39290f2 100644
+index ba6ea5a6..39290f28 100644
 --- a/sm/src/thread.h
 +++ b/sm/src/thread.h
 @@ -71,6 +71,7 @@ struct thread_state

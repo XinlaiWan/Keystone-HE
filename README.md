@@ -13,7 +13,7 @@ after cloning it.
 
 ## Building Keystone components
 
-- Apply the patch on Xvisor.
+- Apply the patch on Keystone.
 
 ```
 > cd keystone
@@ -22,6 +22,7 @@ after cloning it.
 
 - Follow [this section](https://docs.keystone-enclave.org/en/latest/Getting-Started/Running-Keystone-with-QEMU.html) of the Keystone documentation.
   - Generally we can type `make -j$(nproc)` to build all Keystone components.
+  - In WSL, we should use `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make -j$(nproc)` instead to avoid spaces in PATH.
   - Note: when encountering the dependency issue between `keystone-examples` and `opensbi`, 
     run `BUILDROOT_TARGET=keystone-examples-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
 
@@ -79,7 +80,7 @@ After that, run:
 
 ```
 > linux_memory_size 0x80000000
-> linux_cmdline root=/dev/vda ro console=ttyS0 nokaslr
+> linux_cmdline root=/dev/vda ro console=ttyS0 cma=1G nokaslr
 > autoexec
 ```
 
@@ -95,6 +96,10 @@ After that, run:
 - Device trees used in Xvisor:
   - Replace `virt64-guest.dts` and `virt64.dts` with `virt64-guest_two_guests.dts` and `virt64_two_guests.dts`.
   - Do not modify the DTB name in the disk.
+- Boot script used in Xvisor:
+  - Replace `one_guest_virt64.xscript` with `two_guest_virt64.xscript`.
+
+- Prepare a new Xvisor initrd with the above changes.
 
 - Run Keystone:
   - Use `QEMU_FLAGS_TWO_GUESTS` instead of `QEMU_FLAGS` in `keystone/mkutils/plat/generic/run.mk`
