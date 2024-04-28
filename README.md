@@ -139,3 +139,39 @@ For guest1:
 > linux_cmdline root=/dev/vdb ro console=ttyS0 nokaslr
 > autoexec
 ```
+
+## Run Keystone Benchmarks
+
+- Apply patches
+
+```
+> cd keystone-bench
+> git apply ../patches/keystone-bench.patch
+```
+
+And `keystone-bench` also has some submodules:
+
+In `beebs` directory:
+```
+> git apply ../../patches/beebs.patch
+```
+
+In `coremark` directory:
+```
+> git apply ../../patches/coremark.patch
+```
+
+In `iozone` directory:
+```
+> git apply ../../patches/iozone.patch
+```
+
+In `rv8-bench` directory:
+```
+> git apply ../../patches/rv8-bench.patch
+```
+
+- Refer to `keystone-bench/README.md` (patched version) for details of building the benchmarks. It will:
+  - Build all the subdirectories and copy test binaries and running scripts into `keystone-bench/staging`.
+  - Copy the `staging` directory into Keystone rootfs at `/usr/share/keystone/staging` with the help of `qemu-nbd`.
+  - Then we can boot Keystone system as usual and run `./run_all_tests.sh` in it.
