@@ -12,7 +12,7 @@ index 95b9b04..a519f44 100644
 +eyrie-rt
 +loader.bin
 diff --git a/Makefile b/Makefile
-index 4f10f99..e8e9fdb 100644
+index 4f10f99..0258345 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,19 +1,37 @@
@@ -33,11 +33,11 @@ index 4f10f99..e8e9fdb 100644
 +
 +beebs:
 +	cd $(PWD)/beebs && \
-+	CC=$(RVTOOLS)/riscv64-buildroot-linux-gnu-gcc CFLAGS="-std=gnu99 -g" ./configure --host=riscv64 --prefix=$(PWD)/beebs/test_overlay && \
++	CC=$(MUSLTOOLS)/riscv64-linux-musl-gcc CFLAGS="-g -static" ./configure --host=riscv64 --prefix=$(PWD)/beebs/test_overlay && \
 +	make && make install
 +
 +iozone:
-+	make -C ./iozone/ CCRV=$(RVTOOLS)/riscv64-buildroot-linux-gnu-cc riscv
++	make -C ./iozone/ CCRV=$(MUSLTOOLS)/riscv64-linux-musl-cc riscv_musl
 +
  rv8-bench:
  	make -C ./rv8-bench/
@@ -60,10 +60,10 @@ index 4f10f99..e8e9fdb 100644
 +	make -C ./beebs clean
 +	make -C ./beebs distclean
 diff --git a/README.md b/README.md
-index d5000e1..c66b69b 100644
+index d5000e1..ef3a51e 100644
 --- a/README.md
 +++ b/README.md
-@@ -12,3 +12,24 @@ and inserting the module.
+@@ -12,3 +12,30 @@ and inserting the module.
  
  You will need to copy the logs directory out when done, it will not
  persist by default in our images.
@@ -71,15 +71,21 @@ index d5000e1..c66b69b 100644
 +-------------------------------------------------------------------
 +Xinlai hacking version
 +
-+Note: we refer to `<hypervisor-extended-keystone-folder>/keystone/build-generic64/buildroot.build` as `<keystone-buildroot-build-folder>`.
++Note: we refer to `<keystone-root-folder>/build-generic64/buildroot.build` as `<keystone-buildroot-build-folder>`.
 +
-+After building Hypervisor-Extended Keystone, do:
-+`cp <keystone-buildroot-build-folder>/build/<keystone-examples-folder>/hello/{eyrie-rt,loader.bin} .` 
++1. After building Hypervisor-Extended Keystone, do:
++`cp <keystone-buildroot-build-folder>/build/<keystone-examples-folder>/hello/{eyrie-rt,loader.bin} .`.
 +
-+Then, `KEYSTONE_DIR=<hypervisor-extended-keystone-folder>/keystone RVTOOLS=<keystone-buildroot-build-folder>/host/bin make`.
++2. In, `musl-riscv-toolchain` directory, do:
++```
++> git apply ../patches/musltools.patch
++> for i in riscv32 riscv64; do sudo sh bootstrap.sh $i ; done
++```
++If some packages cause `curl` issues, we need to download it manually according to the link shown in the log, place it at `musl-riscv-toolchain/archive`, and run the shell command again, until all the packages are ready.
 +
-+Then, do:
++3. Then, `KEYSTONE_DIR=<keystone-root-folder> RVTOOLS=<keystone-buildroot-build-folder>/host/bin MUSLTOOLS=<musl-toolchain-build-folder>/bin make`.
 +
++4. Then, do:
 +```
 +> sudo qemu-nbd -f raw --connect=/dev/nbd0 <keystone-buildroot-build-folder>/images/rootfs.ext2
 +> lsblk

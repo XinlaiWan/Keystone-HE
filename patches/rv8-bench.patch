@@ -6,7 +6,7 @@ index 0000000..ba077a4
 @@ -0,0 +1 @@
 +bin
 diff --git a/Makefile b/Makefile
-index 6f163d0..5f90462 100644
+index 6f163d0..38182ea 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -6,7 +6,7 @@ CFLAGS = -fPIE -g
@@ -14,7 +14,7 @@ index 6f163d0..5f90462 100644
  
  RV32 = riscv32-linux-musl-
 -RV64 = riscv64-linux-musl-
-+RV64 = $(RVTOOLS)/riscv64-buildroot-linux-gnu-
++RV64 = $(MUSLTOOLS)/riscv64-linux-musl-
  I386 = i386-linux-musl-
  X86_64 = x86_64-linux-musl-
  ARM32 = arm-linux-musleabihf-
