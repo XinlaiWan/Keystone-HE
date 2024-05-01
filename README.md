@@ -3,7 +3,7 @@
 ## Clone this repo with submodules
 
 ```
-git clone --recursive https://github.com/XinlaiWan/hypervisor-extended-keystone.git
+git clone --recursive https://github.com/XinlaiWan/Keystone-HE.git
 ```
 or
 ```
@@ -13,7 +13,7 @@ after cloning it.
 
 ## Apply all the patches
 
-- run `./apply_all_patches.sh`.
+- run `sh ./apply_all_patches.sh`.
   - It will apply patches to `keystone`, `xvisor`, `musl-riscv-toolchain`, and `keystone-bench` with all its submodules automatically.
 
 ## Building Keystone components

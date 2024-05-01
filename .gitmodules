@@ -4,9 +4,9 @@
 [submodule "xvisor"]
 	path = xvisor
 	url = https://github.com/xvisor/xvisor.git
-[submodule "keystone-bench"]
-	path = keystone-bench
-	url = https://github.com/keystone-enclave/keystone-bench.git
 [submodule "musl-riscv-toolchain"]
 	path = musl-riscv-toolchain
 	url = https://github.com/michaeljclark/musl-riscv-toolchain.git
+[submodule "keystone-bench"]
+	path = keystone-bench
+	url = https://github.com/keystone-enclave/keystone-bench.git
