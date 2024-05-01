@@ -32,7 +32,7 @@ Note: if submodules of `keystone-bench` using SSH URLs encounter cloning issues,
 - Follow [this section](https://docs.keystone-enclave.org/en/latest/Getting-Started/Running-Keystone-with-QEMU.html) of the Keystone documentation.
   - Generally we can type `make -j$(nproc)` to build all Keystone components.
   - In WSL, we should use `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make -j$(nproc)` instead to avoid spaces in PATH.
-  - To avoid `wget` issues during buildroot building, create `~/.wgetrc` for proxy setting:
+  - To avoid `wget` issues during buildroot building, we may create `~/.wgetrc` for proxy setting:
     ```
     https_proxy = http://<proxy_ip>:<proxy_port>/
     http_proxy = http://<proxy_ip>:<proxy_port>/
@@ -40,8 +40,6 @@ Note: if submodules of `keystone-bench` using SSH URLs encounter cloning issues,
     ```
   - Note: if encountering the dependency issue between `keystone-examples` and `opensbi`, 
     run `BUILDROOT_TARGET=keystone-examples-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
-  - Note: if encounrering `opensbi-1.1/.stamp_downloaded` error,
-    run `BUILDROOT_TARGET=opensbi-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
 
 ## Create a rootfs image for Xvisor
 
