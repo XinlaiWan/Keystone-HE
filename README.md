@@ -11,9 +11,14 @@ git submodule update --init --recursive
 ```
 after cloning it.
 
+## Apply all the patches
+
+- run `./apply_all_patches.sh`.
+  - It will apply patches to `keystone`, `xvisor`, `musl-riscv-toolchain`, and `keystone-bench` with all its submodules automatically.
+
 ## Building Keystone components
 
-- Apply the patch on Keystone.
+- Apply the patch on Keystone (only if not yet).
 
 ```
 > cd keystone
@@ -37,7 +42,7 @@ after cloning it.
 
 ## Building Xvisor
 
-- Apply the patch on Xvisor.
+- Apply the patch on Xvisor (only if not yet).
 
 ```
 > cd xvisor
@@ -142,7 +147,7 @@ For guest1:
 
 ## Run Keystone Benchmarks
 
-- Apply patches
+- Apply patches (only if not yet).
 
 ```
 > cd keystone-bench

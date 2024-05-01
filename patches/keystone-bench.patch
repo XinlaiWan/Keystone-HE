@@ -81,7 +81,7 @@ index 4f10f99..a0f89bc 100644
 +	make -C ./beebs clean
 +	make -C ./beebs distclean
 diff --git a/README.md b/README.md
-index d5000e1..ef3a51e 100644
+index d5000e1..f2b50f7 100644
 --- a/README.md
 +++ b/README.md
 @@ -12,3 +12,30 @@ and inserting the module.
@@ -99,7 +99,7 @@ index d5000e1..ef3a51e 100644
 +
 +2. In, `musl-riscv-toolchain` directory, do:
 +```
-+> git apply ../patches/musltools.patch
++> git apply ../patches/musltools.patch # only if the patch has not been applied yet
 +> for i in riscv32 riscv64; do sudo sh bootstrap.sh $i ; done
 +```
 +If some packages cause `curl` issues, we need to download it manually according to the link shown in the log, place it at `musl-riscv-toolchain/archive`, and run the shell command again, until all the packages are ready.
