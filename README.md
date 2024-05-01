@@ -11,9 +11,13 @@ git submodule update --init --recursive
 ```
 after cloning it.
 
+Note: if submodules of `keystone-bench` using SSH URLs encounter cloning issues, replace the SSH URLs in `keystone-bench/.gitmodules` with HTTP URLs, deinit all these submodules in `keystone-bench` directory, and try submodule update again.
+
 ## Apply all the patches
 
-- run `sh ./apply_all_patches.sh`.
+- Please check if all the submodules have been really initialized.
+  - If not, run `git submodule deinit -f <submodule-name>` and try `git submodule update --init --recursive` again.
+- Run `sh ./apply_all_patches.sh`.
   - It will apply patches to `keystone`, `xvisor`, `musl-riscv-toolchain`, and `keystone-bench` with all its submodules automatically.
 
 ## Building Keystone components
@@ -28,8 +32,16 @@ after cloning it.
 - Follow [this section](https://docs.keystone-enclave.org/en/latest/Getting-Started/Running-Keystone-with-QEMU.html) of the Keystone documentation.
   - Generally we can type `make -j$(nproc)` to build all Keystone components.
   - In WSL, we should use `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin make -j$(nproc)` instead to avoid spaces in PATH.
-  - Note: when encountering the dependency issue between `keystone-examples` and `opensbi`, 
+  - To avoid `wget` issues during buildroot building, create `~/.wgetrc` for proxy setting:
+    ```
+    https_proxy = http://<proxy_ip>:<proxy_port>/
+    http_proxy = http://<proxy_ip>:<proxy_port>/
+    use_proxy = on
+    ```
+  - Note: if encountering the dependency issue between `keystone-examples` and `opensbi`, 
     run `BUILDROOT_TARGET=keystone-examples-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
+  - Note: if encounrering `opensbi-1.1/.stamp_downloaded` error,
+    run `BUILDROOT_TARGET=opensbi-dirclean make -j$(nproc)` and `make -j$(nproc)` again.
 
 ## Create a rootfs image for Xvisor
 
