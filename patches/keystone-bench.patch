@@ -11,8 +11,29 @@ index 95b9b04..a519f44 100644
 +staging/
 +eyrie-rt
 +loader.bin
+diff --git a/.gitmodules b/.gitmodules
+index cbc75ee..8304196 100644
+--- a/.gitmodules
++++ b/.gitmodules
+@@ -1,12 +1,12 @@
+ [submodule "beebs"]
+ 	path = beebs
+-	url = git@github.com:keystone-enclave/beebs.git
++	url = https://github.com/keystone-enclave/beebs.git
+ [submodule "coremark"]
+ 	path = coremark
+-	url = git@github.com:keystone-enclave/coremark.git
++	url = https://github.com/keystone-enclave/coremark.git
+ [submodule "iozone"]
+ 	path = iozone
+-	url = git@github.com:keystone-enclave/keystone-iozone.git
++	url = https://github.com/keystone-enclave/keystone-iozone.git
+ [submodule "rv8-bench"]
+ 	path = rv8-bench
+-	url = git@github.com:keystone-enclave/rv8-bench.git
++	url = https://github.com/keystone-enclave/rv8-bench.git
 diff --git a/Makefile b/Makefile
-index 4f10f99..0258345 100644
+index 4f10f99..a0f89bc 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -1,19 +1,37 @@
@@ -37,7 +58,7 @@ index 4f10f99..0258345 100644
 +	make && make install
 +
 +iozone:
-+	make -C ./iozone/ CCRV=$(MUSLTOOLS)/riscv64-linux-musl-cc riscv_musl
++	make -C ./iozone/ CCRV=$(MUSLTOOLS)/riscv64-linux-musl-gcc riscv_musl
 +
  rv8-bench:
  	make -C ./rv8-bench/

@@ -6,6 +6,36 @@ index 0000000..c0a80d6
 @@ -0,0 +1,2 @@
 +*.o
 +iozone
+diff --git a/iozone.c b/iozone.c
+index f7da701..3315099 100644
+--- a/iozone.c
++++ b/iozone.c
+@@ -1838,6 +1838,9 @@ void new_touch_dedup(char *, int);
+ /*								*/
+ /****************************************************************/
+ 
++# include <time.h>
++int real_main(int argc, char** argv);
++
+ int main(){
+ 
+   char* argvec[7] = { "iozone","-a","-b","results.xls","-+s","-q1M","1024"};
+diff --git a/libbif.c b/libbif.c
+index b2b9668..8910e48 100644
+--- a/libbif.c
++++ b/libbif.c
+@@ -17,11 +17,7 @@
+ #include <sys/types.h>
+ #include <stdio.h>
+ #include <sys/file.h>
+-#if defined(__AIX__) || defined(__FreeBSD__) || defined(__DragonFly__)
+ #include <fcntl.h>
+-#else
+-#include <sys/fcntl.h>
+-#endif
+ 
+ #if defined(OSV5) || defined(linux) || defined (__FreeBSD__) || defined(__OpenBSD__) || defined(__bsdi__) || defined(__APPLE__) || defined(__DragonFly__) || defined(__NetBSD__)
+ #include <string.h>
 diff --git a/makefile b/makefile
 index 518674c..e167b34 100644
 --- a/makefile

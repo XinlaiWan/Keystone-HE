@@ -19,6 +19,15 @@ index 9752e737..cf2eab43 100644
  
  unsigned long cycles1;
  
+diff --git a/config/riscv64/chips/generic/chip.cfg b/config/riscv64/chips/generic/chip.cfg
+index 16ce7e4a..fa734b4b 100644
+--- a/config/riscv64/chips/generic/chip.cfg
++++ b/config/riscv64/chips/generic/chip.cfg
+@@ -19,4 +19,3 @@
+ # You should have received a copy of the GNU General Public License along with
+ # this program.  If not, see <http://www.gnu.org/licenses/>.
+ 
+-export CHIP_CFLAGS="-std=gnu99"
 diff --git a/run_beebs.sh b/run_beebs.sh
 index f5a051ca..2cc1134a 100755
 --- a/run_beebs.sh
