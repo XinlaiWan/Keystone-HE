@@ -73,19 +73,20 @@ index d5000e1..f2b50f7 100644
 +
 +Note: we refer to `<keystone-root-folder>/build-generic64/buildroot.build` as `<keystone-buildroot-build-folder>`.
 +
-+1. After building Hypervisor-Extended Keystone, do:
++1. After building Keystone-HE, in `keystone-bench` directory, do:
 +`cp <keystone-buildroot-build-folder>/build/<keystone-examples-folder>/hello/{eyrie-rt,loader.bin} .`.
 +
-+2. In, `musl-riscv-toolchain` directory, do:
++2. In `musl-riscv-toolchain` directory, do:
 +```
 +> git apply ../patches/musltools.patch # only if the patch has not been applied yet
 +> for i in riscv32 riscv64; do sudo sh bootstrap.sh $i ; done
 +```
 +If some packages cause `curl` issues, we need to download it manually according to the link shown in the log, place it at `musl-riscv-toolchain/archive`, and run the shell command again, until all the packages are ready.
 +
-+3. Then, `KEYSTONE_DIR=<keystone-root-folder> RVTOOLS=<keystone-buildroot-build-folder>/host/bin MUSLTOOLS=<musl-toolchain-build-folder>/bin make`.
++3. Then back to `keystone-bench` directory, do:
++`KEYSTONE_DIR=<keystone-root-folder> RVTOOLS=<keystone-buildroot-build-folder>/host/bin MUSLTOOLS=<musl-toolchain-build-folder>/bin make`.
 +
-+4. Then, do:
++4. After building benchmarks, do:
 +```
 +> sudo qemu-nbd -f raw --connect=/dev/nbd0 <keystone-buildroot-build-folder>/images/rootfs.ext2
 +> lsblk
