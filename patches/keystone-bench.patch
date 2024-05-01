@@ -344,7 +344,7 @@ index cb540e9..176dd27 100644
  # Test directory names
 -TEST_FRAMEWORKS="rv8-bench coremark"
 -#torch beebs iozone"
-+TEST_FRAMEWORKS="rv8-bench coremark iozone beebs"
++TEST_FRAMEWORKS="rv8-bench coremark iozone"
  
  # Which things to run
  RUN_KEYSTONE=1
