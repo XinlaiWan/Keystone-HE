@@ -11,7 +11,9 @@ git submodule update --init --recursive
 ```
 after cloning it.
 
-Note: if submodules of `keystone-bench` using SSH URLs encounter cloning issues, replace the SSH URLs in `keystone-bench/.gitmodules` with HTTP URLs, deinit all these submodules in `keystone-bench` directory, and try submodule update again.
+Note:
+1. If submodules of `keystone-bench` using SSH URLs encounter cloning issues, replace the SSH URLs in `keystone-bench/.gitmodules` with HTTP URLs, deinit all these submodules in `keystone-bench` directory, and try submodule update again.
+2. All the following steps can be stably performed in Ubuntu 22.04.4 LTS system.
 
 ## Apply all the patches
 
@@ -63,7 +65,7 @@ Note: if submodules of `keystone-bench` using SSH URLs encounter cloning issues,
   - Generally we can go through the steps of 2, 3, 4, 5, 13.
   - In Step 4 and 5, add `CROSS_COMPILE=riscv64-unknown-linux-gnu-` in front of the `make` commands.
   - In Step 13, use `../rootfs.img` as rootfs image and `../keystone/build-generic64/buildroot.build/images/Image` as Linux kernel image.
-  - In Step 13, delete `-B 1024` in the last `genext2fs` command.
+  - In Step 13, delete `-B 1024` in the last `genext2fs` command and replace `b 32768` with `b 65536`.
 
 ## Boot native Xvisor on OpenSBI Firmware with Keystone SM
 
